@@ -1691,7 +1691,17 @@ class TabManager:  # {{{
                 return
             tab_data = tab.data_for_tab_bar(tab is get_boss().active_tab)
             if tab_id not in all_tabs:
-                all_tabs.append(tab_id)
+                # Insert before pinned tabs so they stay last (preserves klonopin invariant)
+                insert_pos = len(all_tabs)
+                for i, tid in enumerate(all_tabs):
+                    try:
+                        t = get_boss().tab_for_id(tid)
+                        if t and t.active_window and t.active_window.user_vars.get("PINNED") == "true":
+                            insert_pos = i
+                            break
+                    except Exception:
+                        pass
+                all_tabs.insert(insert_pos, tab_id)
             _, _, start_x, _ = get_tab_being_dragged()
             self.tab_being_dropped = TabBeingDropped(data=tab_data, tab_ids=all_tabs, last_drop_move_x=int(start_x))
             mouse_moved_left = False
