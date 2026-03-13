@@ -1720,8 +1720,17 @@ class TabManager:  # {{{
         idx_moved_left = old_idx_under_mouse > idx_under_mouse
         new_tab_ids = old_tab_ids
         if mouse_moved_left == idx_moved_left:
-            new_tab_ids = list(old_tab_ids)
-            new_tab_ids[idx_under_mouse], new_tab_ids[old_idx_under_mouse] = new_tab_ids[old_idx_under_mouse], new_tab_ids[idx_under_mouse]
+            # Only swap tabs of the same type (both pinned or both center)
+            # to prevent dragging past the pinned/center boundary
+            def _is_tid_pinned(tid: int) -> bool:
+                try:
+                    t = get_boss().tab_for_id(tid)
+                    return bool(t and t.active_window and t.active_window.user_vars.get("PINNED") == "true")
+                except Exception:
+                    return False
+            if _is_tid_pinned(tab_id) == _is_tid_pinned(old_tab_ids[idx_under_mouse]):
+                new_tab_ids = list(old_tab_ids)
+                new_tab_ids[idx_under_mouse], new_tab_ids[old_idx_under_mouse] = new_tab_ids[old_idx_under_mouse], new_tab_ids[idx_under_mouse]
         self.tab_being_dropped = self.tab_being_dropped._replace(last_drop_move_x=x, tab_ids=new_tab_ids)
         if force_update or self.tab_being_dropped.tab_ids != old_tab_ids:
             self.layout_tab_bar()
