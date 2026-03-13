@@ -136,6 +136,7 @@ class TabDict(TypedDict):
     windows: list[WindowDict]
     groups: list[dict[str, Any]]
     active_window_history: list[int]
+    pinned: bool
 
 
 class SpecialWindowInstance(NamedTuple):
@@ -188,6 +189,7 @@ class Tab:  # {{{
     has_indeterminate_progress: bool = False
     last_focused_window_with_progress_id: int = 0
     allow_relayouts: bool = True
+    pinned: bool = False
 
     def __init__(
         self,
@@ -206,6 +208,7 @@ class Tab:  # {{{
             raise Exception(f'No OS window with id {self.os_window_id} found, or tab counter has wrapped')
         self.args = tab_manager.args
         self.name = getattr(session_tab, 'name', '')
+        self.pinned = getattr(session_tab, 'pinned', False)
         self.enabled_layouts = [x.lower() for x in getattr(session_tab, 'enabled_layouts', None) or get_options().enabled_layouts]
         self.borders = Borders(self.os_window_id, self.id)
         self.windows: WindowList = WindowList(self)
@@ -373,6 +376,7 @@ class Tab:  # {{{
             'layout_state': self.current_layout.serialize(self.windows),
             'enabled_layouts': self.enabled_layouts,
             'name': self.name,
+            'pinned': self.pinned,
         }
 
     def serialize_state_as_session(self, session_path: str, matched_windows: frozenset[Window] | None, ser_opts: SaveAsSessionOptions) -> list[str]:
@@ -411,6 +415,7 @@ class Tab:  # {{{
             return [
                 '',
                 f'new_tab {self.name}'.rstrip(),
+                *(('pinned',) if self.pinned else ()),
                 f'layout {layout}',
                 f'enabled_layouts {",".join(enabled_layouts)}',
                 f'set_layout_state {json.dumps(self.current_layout.serialize(self.windows))}',
@@ -435,7 +440,7 @@ class Tab:  # {{{
             has_activity_since_last_focus, t.active_fg, t.active_bg,
             t.inactive_fg, t.inactive_bg, t.num_of_windows_with_progress,
             t.total_progress, t.last_focused_window_with_progress_id,
-            t.created_in_session_name, t.active_session_name,
+            t.created_in_session_name, t.active_session_name, t.pinned,
         )
 
     def active_window_changed(self) -> None:
@@ -478,6 +483,15 @@ class Tab:  # {{{
     def set_title(self, title: str) -> None:
         self.name = title or ''
         self.mark_tab_bar_dirty()
+
+    def set_pinned(self, pinned: bool = True) -> None:
+        if self.pinned == pinned:
+            return
+        self.pinned = pinned
+        tm = self.tab_manager_ref()
+        if tm is not None:
+            tm._enforce_pinned_ordering()
+            tm.mark_tab_bar_dirty()
 
     def update_window_title_bars(self) -> None:
         active_group = self.windows.active_group
@@ -1451,6 +1465,7 @@ class TabManager:  # {{{
                         'windows': windows,
                         'groups': tab.list_groups(),
                         'active_window_history': list(tab.windows.active_window_history),
+                        'pinned': tab.pinned,
                     }
 
     def serialize_state(self) -> dict[str, Any]:
@@ -1513,6 +1528,8 @@ class TabManager:  # {{{
             step = 1 if idx < nidx else -1
             for i in range(idx, nidx, step):
                 self.swap_tabs(i, i + step)
+            self._enforce_pinned_ordering()
+            nidx = self.tabs.index(new_active_tab)
             self._set_active_tab(nidx)
             self.mark_tab_bar_dirty()
 
@@ -1558,6 +1575,8 @@ class TabManager:  # {{{
                 for i in range(idx, desired_idx, -1):
                     self.swap_tabs(i, i-1)
                 idx = desired_idx
+        self._enforce_pinned_ordering()
+        idx = self.tabs.index(t)
         self._set_active_tab(idx)
         self.mark_tab_bar_dirty()
         return t
@@ -1665,6 +1684,14 @@ class TabManager:  # {{{
                 ans.append(tab.data_for_tab_bar(tab is at))
         return ans
 
+    def _enforce_pinned_ordering(self) -> None:
+        center = [t for t in self.tabs if not t.pinned]
+        pinned = [t for t in self.tabs if t.pinned]
+        new_order = center + pinned
+        if list(self.tabs) != new_order:
+            self.tabs[:] = new_order
+            reorder_tabs(self.os_window_id, *(t.id for t in self.tabs))
+
     def apply_tab_ordering(self, tab_ids: Sequence[int]) -> None:
         id_map = {t.id:t for t in self.tabs}
         ordered_ids = frozenset(tab_ids)
@@ -1691,12 +1718,12 @@ class TabManager:  # {{{
                 return
             tab_data = tab.data_for_tab_bar(tab is get_boss().active_tab)
             if tab_id not in all_tabs:
-                # Insert before pinned tabs so they stay last (preserves klonopin invariant)
+                # Insert before pinned tabs so they stay last (preserves pinned invariant)
                 insert_pos = len(all_tabs)
                 for i, tid in enumerate(all_tabs):
                     try:
                         t = get_boss().tab_for_id(tid)
-                        if t and t.active_window and t.active_window.user_vars.get("PINNED") == "true":
+                        if t and t.pinned:
                             insert_pos = i
                             break
                     except Exception:
@@ -1725,7 +1752,7 @@ class TabManager:  # {{{
             def _is_tid_pinned(tid: int) -> bool:
                 try:
                     t = get_boss().tab_for_id(tid)
-                    return bool(t and t.active_window and t.active_window.user_vars.get("PINNED") == "true")
+                    return bool(t and t.pinned)
                 except Exception:
                     return False
             if _is_tid_pinned(tab_id) == _is_tid_pinned(old_tab_ids[idx_under_mouse]):

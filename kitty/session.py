@@ -71,6 +71,7 @@ class Tab:
         self.layout_state: dict[str, Any] | None = None
         self.cwd: str | None = None
         self.next_title: str | None = None
+        self.pinned: bool = False
 
     @property
     def has_non_background_processes(self) -> bool:
@@ -277,6 +278,9 @@ def parse_session(
                 ans.set_enabled_layouts(rest)
             elif cmd == 'cd':
                 ans.set_cwd(rest, session_base_dir)
+            elif cmd == 'pinned':
+                if ans.tabs:
+                    ans.tabs[-1].pinned = True
             elif cmd == 'title':
                 ans.set_next_title(rest)
             elif cmd == 'os_window_size':

@@ -55,6 +55,7 @@ class TabBarData(NamedTuple):
     last_focused_window_with_progress_id: int = 0
     session_name: str = ''
     active_session_name: str = ''
+    pinned: bool = False
 
 
 class DrawData(NamedTuple):
