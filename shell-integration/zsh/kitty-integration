@@ -95,6 +95,7 @@ _ksi_deferred_init() {
         if [[ ! "$PATH" =~ (^|:)${SSH_KITTEN_KITTY_DIR}(:|$) ]] && [[ -z "$(builtin command -v kitten)" ]]; then
             builtin export PATH="${PATH}:${SSH_KITTEN_KITTY_DIR}"
         fi
+        builtin local _ksi_is_ssh_kitten=y
         builtin unset SSH_KITTEN_KITTY_DIR
     fi
 
@@ -297,8 +298,8 @@ _ksi_deferred_init() {
         functions[_ksi_precmd]+='
             _ksi_set_uservar PROC ""'
 
-        # Report remote host and CWD when in an SSH session via the SSH kitten
-        if [[ -n "$_KSI_REMOTE_DIR" ]]; then
+        # Report remote host and CWD when connected via the SSH kitten
+        if [[ "$_ksi_is_ssh_kitten" == "y" ]]; then
             functions[_ksi_precmd]+='
                 _ksi_set_uservar REMOTE_HOST "$HOST"
                 _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/\~}"'
