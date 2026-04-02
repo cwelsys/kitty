@@ -278,37 +278,17 @@ _ksi_deferred_init() {
 
     # Enable terminal title changes.
     if (( ! opt[(Ie)no-title] )); then
-        # We don't use `print -P` because it depends on prompt options, which
-        # we don't control and cannot change.
-        #
-        # We use (V) in preexec to convert control characters to something visible
-        # (LF becomes \n, etc.). This isn't necessary in precmd because (%) does it
-        # for us.
-        builtin local is_ssh_session="n"
-        if [[ -n "$KITTY_PID" ]]; then
-            # kitty running locally
-        elif [[ -n "$SSH_TTY" || -n "$SSH2_TTY$KITTY_WINDOW_ID" ]]; then
-            # connected to most SSH servers
-            # or use ssh kitten to connected to some SSH servers that do not set SSH_TTY
-            is_ssh_session="y"
-        elif [[ -n "$(builtin command -v who)" ]]; then
-            # the shell integration script is installed manually on the remote system
-            # the environment variables are cleared after sudo
-            # OpenSSH's sshd creates entries in utmp for every login so use those
-            [[ "$(builtin command who -m 2> /dev/null)" =~ "\([a-fA-F.:0-9]+\)$" ]] && is_ssh_session="y"
-        fi
+        # Helper to set shell title layer via uservar
+        _ksi_set_shell_title() {
+            builtin local encoded
+            encoded=$(builtin printf '%s' "$1" | command base64 2>/dev/null) || return
+            builtin print -nu $_ksi_fd '\e]1337;SetUserVar=SHELL_TITLE='"${encoded}"'\a'
+        }
 
-        if [[ "$is_ssh_session" == "y" ]]; then
-            functions[_ksi_precmd]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)\${HOST-}/%.*/}: \${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
-            functions[_ksi_preexec]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)\${HOST-}/%.*/}: \${(V)1}\"\$'\\a'"
-        else
-            functions[_ksi_precmd]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
-            functions[_ksi_preexec]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)1}\"\$'\\a'"
-        fi
+        functions[_ksi_precmd]+='
+            _ksi_set_shell_title ""'
+        functions[_ksi_preexec]+='
+            _ksi_set_shell_title "${(V)1}"'
     fi
 
     # Enable cursor shape changes depending on the current keymap.
