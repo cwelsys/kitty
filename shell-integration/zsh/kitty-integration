@@ -302,7 +302,7 @@ _ksi_deferred_init() {
         if [[ "$_ksi_is_ssh_kitten" == "y" ]]; then
             functions[_ksi_precmd]+='
                 _ksi_set_uservar REMOTE_HOST "$HOST"
-                _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/\~}"'
+                _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/~}"'
         else
             functions[_ksi_precmd]+='
                 _ksi_set_uservar REMOTE_HOST ""
