@@ -1619,7 +1619,7 @@ margin between the tab bar and the contents of the current tab.
     )
 
 opt('tab_bar_style', 'fade',
-    choices=('fade', 'hidden', 'powerline', 'separator', 'slant', 'custom'),
+    choices=('fade', 'hidden', 'powerline', 'separator', 'slant', 'custom', 'zones'),
     ctype='!tab_bar_style',
     long_text='''
 The tab bar style, can be one of:
