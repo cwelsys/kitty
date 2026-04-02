@@ -95,6 +95,13 @@ installed. Relative paths are resolved with respect to :code:`$HOME`. Absolute
 paths have their leading / removed and so are also resolved with respect to $HOME.
 ''')
 
+opt('terminfo_dir', '.terminfo', long_text='''
+The location on the remote host where the kitty terminfo database is installed.
+Relative paths are resolved with respect to :code:`$HOME`. The default
+:code:`.terminfo` matches the standard behavior. Set to
+:code:`.local/share/terminfo` for XDG-compliant installations.
+''')
+
 opt('+copy', '', add_to_default=False, ctype='CopyInstruction', long_text=f'''
 {copy_message} For example::
 
