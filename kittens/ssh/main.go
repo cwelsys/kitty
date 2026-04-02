@@ -246,6 +246,7 @@ func serialize_env(cd *connection_data, get_local_env func(string) (string, bool
 		env = append(env, &EnvInstruction{key: "KITTY_SHELL_INTEGRATION", delete_on_remote: true})
 	}
 	add_non_literal_env("KITTY_SSH_KITTEN_DATA_DIR", cd.host_opts.Remote_dir)
+	add_non_literal_env("KITTY_SSH_KITTEN_TERMINFO_DIR", cd.host_opts.Terminfo_dir)
 	add_non_literal_env("KITTY_LOGIN_SHELL", cd.host_opts.Login_shell)
 	add_non_literal_env("KITTY_LOGIN_CWD", cd.host_opts.Cwd)
 	if cd.host_opts.Remote_kitty != Remote_kitty_no {
@@ -358,9 +359,13 @@ func make_tarfile(cd *connection_data, get_local_env func(string) (string, bool)
 			}
 		}
 	}
-	err = add_entries(path.Join("home", ".terminfo"), shell_integration.Data()["terminfo/kitty.terminfo"])
+	terminfo_dir := cd.host_opts.Terminfo_dir
+	if terminfo_dir == "" {
+		terminfo_dir = ".terminfo"
+	}
+	err = add_entries(path.Join("home", terminfo_dir), shell_integration.Data()["terminfo/kitty.terminfo"])
 	if err == nil {
-		err = add_entries(path.Join("home", ".terminfo", "x"), shell_integration.Data()["terminfo/x/"+kitty.DefaultTermName])
+		err = add_entries(path.Join("home", terminfo_dir, "x"), shell_integration.Data()["terminfo/x/"+kitty.DefaultTermName])
 	}
 	if err == nil {
 		err = tw.Close()

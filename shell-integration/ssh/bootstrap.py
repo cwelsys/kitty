@@ -144,7 +144,7 @@ def compile_terminfo(base):
             tic = ''
     if not tic:
         return
-    tname = '.terminfo'
+    tname = os.environ.get('KITTY_SSH_KITTEN_TERMINFO_DIR', '.terminfo')
     q = os.path.join(base, tname, '78', 'xterm-kitty')
     if not os.path.exists(q):
         try:
