@@ -746,8 +746,7 @@ class Window:
         self.override_title = override_title
         self.default_title = os.path.basename(child.argv[0] or appname)
         self.child_title = self.default_title
-        # Title layers: user (explicit rename) > program (OSC 2 from app) > shell (preexec command)
-        self.user_title: str = ''
+        # Title layers: program (OSC 2 from app) > shell (preexec command)
         self.program_title: str = ''
         self.shell_title: str = ''
         self.title_stack: Deque[str] = deque(maxlen=10)
@@ -853,7 +852,7 @@ class Window:
 
     @property
     def title(self) -> str:
-        return self.override_title or self.user_title or self.program_title or self.shell_title or self.child_title
+        return self.override_title or self.program_title or self.shell_title or self.child_title
 
     def __repr__(self) -> str:
         return f'Window(title={self.title}, id={self.id})'
@@ -2144,7 +2143,7 @@ class Window:
             'is_active': is_active,
             'title': self.title,
             'title_overridden': self.override_title is not None,
-            'user_title': self.user_title,
+
             'program_title': self.program_title,
             'shell_title': self.shell_title,
             'pid': self.child.pid,
