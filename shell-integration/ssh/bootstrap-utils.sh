@@ -16,7 +16,7 @@ mv_files_and_dirs() {
 }
 
 compile_terminfo() {
-    tname=".terminfo"
+    tname="${KITTY_SSH_KITTEN_TERMINFO_DIR:-.terminfo}"
     # Ensure the 78 dir is present
     if [ ! -f "$1/$tname/78/xterm-kitty" ]; then
         command mkdir -p "$1/$tname/78"
@@ -28,7 +28,7 @@ compile_terminfo() {
         # Also compile terminfo using tic installed via pkgsrc,
         # so that programs that depend on the new version of ncurses automatically fall back to this one.
         if [ -x "/usr/pkg/bin/tic" ]; then
-            /usr/pkg/bin/tic -x -o "$1/$tname" "$1/.terminfo/kitty.terminfo" 2>/dev/null
+            /usr/pkg/bin/tic -x -o "$1/$tname" "$1/$tname/kitty.terminfo" 2>/dev/null
         fi
         if [ ! -e "$1/$tname/x/xterm-kitty" ]; then
             command ln -sf "../../.terminfo.cdb" "$1/$tname/x/xterm-kitty"
@@ -41,7 +41,7 @@ compile_terminfo() {
 
     # compile terminfo for this system
     if [ -x "$(command -v tic)" ]; then
-        tic_out=$(command tic -x -o "$1/$tname" "$1/.terminfo/kitty.terminfo" 2>&1)
+        tic_out=$(command tic -x -o "$1/$tname" "$1/$tname/kitty.terminfo" 2>&1)
         [ $? = 0 ] || die "Failed to compile terminfo with err: $tic_out"
     fi
 }
@@ -197,7 +197,7 @@ prepare_for_exec() {
         # have been sent before the script had a chance to run
         printf "\r\033[K" > /dev/tty
     fi
-    [ -f "$HOME/.terminfo/kitty.terminfo" ] || die "Incomplete extraction of ssh data"
+    [ -f "$HOME/${KITTY_SSH_KITTEN_TERMINFO_DIR:-.terminfo}/kitty.terminfo" ] || die "Incomplete extraction of ssh data"
     install_kitty_bootstrap
 
     [ -n "$login_shell" ] || using_getent || using_id || using_python || using_perl || using_passwd || using_shell_env || login_shell="sh"
