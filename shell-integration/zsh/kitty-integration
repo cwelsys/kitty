@@ -84,7 +84,7 @@ precmd_functions+=(_ksi_deferred_init)
 _ksi_deferred_init() {
     builtin emulate -L zsh -o no_warn_create_global -o no_aliases
 
-    # Recognized options: no-cursor, no-title, no-prompt-mark, no-complete, no-cwd, no-sudo.
+    # Recognized options: no-cursor, no-title, no-prompt-mark, no-complete, no-cwd, no-sudo, no-uservars.
     builtin local -a opt
     opt=(${(s: :)KITTY_SHELL_INTEGRATION})
     builtin unset KITTY_SHELL_INTEGRATION
@@ -278,6 +278,34 @@ _ksi_deferred_init() {
                 builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
             functions[_ksi_preexec]+="
                 builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)1}\"\$'\\a'"
+        fi
+    fi
+
+    # Enable user variable reporting for tab bar integration.
+    if (( ! opt[(Ie)no-uservars] )); then
+        # Helper to emit OSC 1337 SetUserVar
+        _ksi_set_uservar() {
+            builtin local encoded
+            encoded=$(builtin printf '%s' "$2" | command base64 2>/dev/null) || builtin return
+            builtin print -nu $_ksi_fd '\e]1337;SetUserVar='"$1"'='"${encoded}"'\a'
+        }
+
+        # Report process name in preexec, clear in precmd
+        functions[_ksi_preexec]+='
+            _ksi_set_uservar PROC "${3%% *}"'
+
+        functions[_ksi_precmd]+='
+            _ksi_set_uservar PROC ""'
+
+        # Report remote host and CWD when in an SSH session via the SSH kitten
+        if [[ -n "$_KSI_REMOTE_DIR" ]]; then
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST "$HOST"
+                _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/\~}"'
+        else
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST ""
+                _ksi_set_uservar REMOTE_CWD ""'
         fi
     fi
 
