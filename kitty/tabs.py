@@ -426,7 +426,7 @@ class Tab:  # {{{
 
     def data_for_tab_bar(self, is_active: bool) -> TabBarData:
         t = self
-        title = t.name or t.title or appname
+        title = t.name or t.title or ''
         needs_attention = False
         has_activity_since_last_focus = False
         for w in t:

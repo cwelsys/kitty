@@ -746,6 +746,10 @@ class Window:
         self.override_title = override_title
         self.default_title = os.path.basename(child.argv[0] or appname)
         self.child_title = self.default_title
+        # Title layers: user (explicit rename) > program (OSC 2 from app) > shell (preexec command)
+        self.user_title: str = ''
+        self.program_title: str = ''
+        self.shell_title: str = ''
         self.title_stack: Deque[str] = deque(maxlen=10)
         self.user_vars: dict[str, str] = {}
         self.id: int = add_window(tab.os_window_id, tab.id, self.title)
@@ -849,7 +853,7 @@ class Window:
 
     @property
     def title(self) -> str:
-        return self.override_title or self.child_title
+        return self.override_title or self.user_title or self.program_title or self.shell_title or self.child_title
 
     def __repr__(self) -> str:
         return f'Window(title={self.title}, id={self.id})'
@@ -1238,8 +1242,25 @@ class Window:
             _('Enter the new title for this window below. An empty title will cause the default title to be used.'),
             self.set_title, window=self, initial_value=prefilled, window_title=_('Rename window'))
 
+    def set_shell_title(self, title: str) -> None:
+        self.shell_title = title
+        # When shell signals idle (precmd), also clear program layer
+        # since the foreground process that set it has exited
+        if not title:
+            self.program_title = ''
+        self.title_updated()
+
     def set_user_var(self, key: str, val: str | bytes | None) -> None:
         key = sanitize_control_codes(key).replace('\n', ' ')
+        # Route special uservars to title layers
+        if key == 'SHELL_TITLE':
+            if val is not None:
+                if isinstance(val, bytes):
+                    val = val.decode('utf-8', 'replace')
+                self.set_shell_title(sanitize_control_codes(val).replace('\n', ' '))
+            else:
+                self.set_shell_title('')
+            return
         self.user_vars.pop(key, None)  # ensure key will be newest in user_vars even if already present
         if len(self.user_vars) > 64:  # dont store too many user vars
             oldest_key = next(iter(self.user_vars))
@@ -1419,6 +1440,8 @@ class Window:
 
     def title_changed(self, new_title: memoryview | None, is_base64: bool = False) -> None:
         self.child_title = process_title_from_child(new_title or memoryview(b''), is_base64, self.default_title)
+        # Programs setting title via OSC 2 go to the program layer
+        self.program_title = self.child_title if self.child_title != self.default_title else ''
         self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
         if self.override_title is None:
             self.title_updated()
@@ -2121,6 +2144,9 @@ class Window:
             'is_active': is_active,
             'title': self.title,
             'title_overridden': self.override_title is not None,
+            'user_title': self.user_title,
+            'program_title': self.program_title,
+            'shell_title': self.shell_title,
             'pid': self.child.pid,
             'cwd': self.child.current_cwd or self.child.cwd,
             'cmdline': self.child.cmdline,
