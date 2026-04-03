@@ -1182,6 +1182,15 @@ class WindowBeingDropped(NamedTuple):
     quadrant: int = 0  # 0=none, 1=left, 2=right, 3=top, 4=bottom, 5=full+titlebar, 6=full
 
 
+def _is_tab_pinned(tab_id: int) -> bool:
+    """Check if a tab ID corresponds to a pinned tab."""
+    try:
+        tab = get_boss().tab_for_id(tab_id)
+        return bool(tab and tab.pinned)
+    except Exception:
+        return False
+
+
 class TabManager:  # {{{
 
     confirm_close_window_id: int = 0
@@ -1719,15 +1728,10 @@ class TabManager:  # {{{
             tab_data = tab.data_for_tab_bar(tab is get_boss().active_tab)
             if tab_id not in all_tabs:
                 # Insert before pinned tabs so they stay last (preserves pinned invariant)
-                insert_pos = len(all_tabs)
-                for i, tid in enumerate(all_tabs):
-                    try:
-                        t = get_boss().tab_for_id(tid)
-                        if t and t.pinned:
-                            insert_pos = i
-                            break
-                    except Exception:
-                        pass
+                insert_pos = next(
+                    (i for i, tid in enumerate(all_tabs) if _is_tab_pinned(tid)),
+                    len(all_tabs),
+                )
                 all_tabs.insert(insert_pos, tab_id)
             _, _, start_x, _ = get_tab_being_dragged()
             self.tab_being_dropped = TabBeingDropped(data=tab_data, tab_ids=all_tabs, last_drop_move_x=int(start_x))
@@ -1749,13 +1753,7 @@ class TabManager:  # {{{
         if mouse_moved_left == idx_moved_left:
             # Only swap tabs of the same type (both pinned or both center)
             # to prevent dragging past the pinned/center boundary
-            def _is_tid_pinned(tid: int) -> bool:
-                try:
-                    t = get_boss().tab_for_id(tid)
-                    return bool(t and t.pinned)
-                except Exception:
-                    return False
-            if _is_tid_pinned(tab_id) == _is_tid_pinned(old_tab_ids[idx_under_mouse]):
+            if _is_tab_pinned(tab_id) == _is_tab_pinned(old_tab_ids[idx_under_mouse]):
                 new_tab_ids = list(old_tab_ids)
                 new_tab_ids[idx_under_mouse], new_tab_ids[old_idx_under_mouse] = new_tab_ids[old_idx_under_mouse], new_tab_ids[idx_under_mouse]
         self.tab_being_dropped = self.tab_being_dropped._replace(last_drop_move_x=x, tab_ids=new_tab_ids)
