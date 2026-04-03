@@ -173,23 +173,15 @@ def _load_content_provider() -> dict:
         return {}
 
 
-def _get_tab_content_func():
-    """Get tab_content function from content provider, or None."""
-    return _load_content_provider().get('tab_content')
+def _get_content_provider():
+    """Get all content provider attributes in a single call.
 
-
-def _get_left_zone_content_func():
-    """Get left_zone_content function from content provider, or None."""
-    return _load_content_provider().get('left_zone_content')
-
-
-def _get_pill_glyphs() -> tuple[str, str, str, int]:
-    """Get pill glyphs from content provider, with defaults.
-
-    Returns: (border_left, border_right, separator, spacing)
+    Returns: (tab_content_func, left_zone_func, border_left, border_right, separator, spacing)
     """
     m = _load_content_provider()
     return (
+        m.get('tab_content'),
+        m.get('left_zone_content'),
         m.get('PILL_BORDER_LEFT', '\ue0b6'),
         m.get('PILL_BORDER_RIGHT', '\ue0b4'),
         m.get('PILL_SEPARATOR', '\ue0b0'),
@@ -229,9 +221,7 @@ def draw_tab_with_zones(
     if not tabs:
         return []
 
-    border_left, border_right, separator, spacing = _get_pill_glyphs()
-    tab_content_func = _get_tab_content_func()
-    left_zone_func = _get_left_zone_content_func()
+    tab_content_func, left_zone_func, border_left, border_right, separator, spacing = _get_content_provider()
 
     # Detect drag state
     is_drag = False
