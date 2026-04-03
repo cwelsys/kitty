@@ -247,6 +247,35 @@ _ksi_deferred_init() {
         _ksi_report_pwd
     fi
 
+    # Enable user variable reporting for tab bar integration.
+    # Must come before title block so uservars are set before title triggers redraw.
+    if (( ! opt[(Ie)no-uservars] )); then
+        # Helper to emit OSC 1337 SetUserVar
+        _ksi_set_uservar() {
+            builtin local encoded
+            encoded=$(builtin printf '%s' "$2" | command base64 2>/dev/null) || builtin return
+            builtin print -nu $_ksi_fd '\e]1337;SetUserVar='"$1"'='"${encoded}"'\a'
+        }
+
+        # Report process name in preexec, clear in precmd
+        functions[_ksi_preexec]+='
+            _ksi_set_uservar PROC "${3%% *}"'
+
+        functions[_ksi_precmd]+='
+            _ksi_set_uservar PROC ""'
+
+        # Report remote host and CWD when connected via the SSH kitten
+        if [[ "$_ksi_is_ssh_kitten" == "y" ]]; then
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST "$HOST"
+                _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/~}"'
+        else
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST ""
+                _ksi_set_uservar REMOTE_CWD ""'
+        fi
+    fi
+
     # Enable terminal title changes.
     if (( ! opt[(Ie)no-title] )); then
         # We don't use `print -P` because it depends on prompt options, which
@@ -279,34 +308,6 @@ _ksi_deferred_init() {
                 builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
             functions[_ksi_preexec]+="
                 builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)1}\"\$'\\a'"
-        fi
-    fi
-
-    # Enable user variable reporting for tab bar integration.
-    if (( ! opt[(Ie)no-uservars] )); then
-        # Helper to emit OSC 1337 SetUserVar
-        _ksi_set_uservar() {
-            builtin local encoded
-            encoded=$(builtin printf '%s' "$2" | command base64 2>/dev/null) || builtin return
-            builtin print -nu $_ksi_fd '\e]1337;SetUserVar='"$1"'='"${encoded}"'\a'
-        }
-
-        # Report process name in preexec, clear in precmd
-        functions[_ksi_preexec]+='
-            _ksi_set_uservar PROC "${3%% *}"'
-
-        functions[_ksi_precmd]+='
-            _ksi_set_uservar PROC ""'
-
-        # Report remote host and CWD when connected via the SSH kitten
-        if [[ "$_ksi_is_ssh_kitten" == "y" ]]; then
-            functions[_ksi_precmd]+='
-                _ksi_set_uservar REMOTE_HOST "$HOST"
-                _ksi_set_uservar REMOTE_CWD "${PWD/#$HOME/~}"'
-        else
-            functions[_ksi_precmd]+='
-                _ksi_set_uservar REMOTE_HOST ""
-                _ksi_set_uservar REMOTE_CWD ""'
         fi
     fi
 
