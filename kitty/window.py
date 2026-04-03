@@ -1251,6 +1251,9 @@ class Window:
             self.call_watchers(self.watchers.on_set_user_var, {'key': key, 'value': val})
         else:
             self.call_watchers(self.watchers.on_set_user_var, {'key': key, 'value': None})
+        t = self.tabref()
+        if t is not None:
+            t.mark_tab_bar_dirty()
 
     # screen callbacks {{{
 
