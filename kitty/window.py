@@ -1243,10 +1243,11 @@ class Window:
 
     def set_shell_title(self, title: str) -> None:
         self.shell_title = title
-        # When shell signals idle (precmd), also clear program layer
-        # since the foreground process that set it has exited
+        # When shell signals idle (precmd), clear program and child layers
+        # since the foreground process that set them has exited
         if not title:
             self.program_title = ''
+            self.child_title = ''
         self.title_updated()
 
     def set_user_var(self, key: str, val: str | bytes | None) -> None:
