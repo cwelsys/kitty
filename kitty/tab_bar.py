@@ -60,6 +60,10 @@ class TabBarData(NamedTuple):
     last_focused_window_with_progress_id: int = 0
     session_name: str = ''
     active_session_name: str = ''
+    override_title: str = ''
+    program_title: str = ''
+    shell_title: str = ''
+    tab_name: str = ''
 
 
 class DrawData(NamedTuple):
@@ -567,6 +571,8 @@ def load_custom_draw_tab() -> DrawTabFunc:
 def clear_caches() -> None:
     load_custom_draw_tab.clear_cached()
     load_custom_draw_tab_module.clear_cached()
+    from .tab_bar_zones import clear_caches as clear_zones
+    clear_zones()
 
 
 class CustomDrawTitleFunc:
@@ -670,6 +676,10 @@ class TabBar:
             self.draw_func = draw_tab_with_slant
         elif ts == 'custom':
             self.draw_func = load_custom_draw_tab()
+        elif ts == 'zones':
+            from .tab_bar_zones import draw_tab_with_zones
+            self._zones_draw = draw_tab_with_zones
+            self.draw_func = draw_tab_with_fade  # fallback, unused in zones path
         else:
             self.draw_func = draw_tab_with_fade
         self.tab_bar_align = normalized_tab_bar_align(opts.tab_bar_align)
@@ -844,9 +854,23 @@ class TabBar:
             return self.update_vertical(data)
 
         s = self.screen
+        self.last_laid_out_tabs = data
+
+        # Zones style: bypass per-tab loop entirely
+        if hasattr(self, '_zones_draw'):
+            s.cursor.x = 0
+            s.erase_in_line(2, False)
+            try:
+                self.tab_extents = self._zones_draw(self.draw_data, s, data)
+            except Exception as e:
+                log_error(f'Zones tab bar draw failed: {e}')
+                self.tab_extents = []
+            s.erase_in_line(0, False)
+            update_tab_bar_edge_colors(self.os_window_id)
+            return
+
         last_tab = data[-1] if data else None
         ed = ExtraData()
-        self.last_laid_out_tabs = data
 
         def draw_tab(i: int, tab: TabBarData, cell_ranges: list[TabExtent], max_tab_length: int) -> None:
             ed.prev_tab = data[i - 1] if i > 0 else None

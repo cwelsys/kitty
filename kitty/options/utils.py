@@ -784,6 +784,37 @@ def tab_bar_min_tabs(x: str) -> int:
     return max(1, positive_int(x))
 
 
+TAB_CONTENT_KINDS = frozenset({'cwd', 'git', 'cwd_git', 'title', 'tab_label'})
+
+
+def tab_bar_zone(x: str) -> tuple[str, ...]:
+    kinds = []
+    for part in x.split():
+        if part not in TAB_CONTENT_KINDS:
+            log_error(f'Ignoring unknown tab bar content kind: {part}')
+            continue
+        kinds.append(part)
+    return tuple(kinds)
+
+
+def tab_bar_content_separator(x: str) -> str:
+    for q in '\'"':
+        if x.startswith(q) and x.endswith(q):
+            return x[1:-1]
+    return x
+
+
+def tab_bar_icon_elements(x: str) -> tuple[str, ...]:
+    valid = ('index', 'icon')
+    result = []
+    for part in x.split():
+        if part not in valid:
+            log_error(f'Ignoring unknown tab_bar_icon_elements value: {part}')
+            continue
+        result.append(part)
+    return tuple(result)
+
+
 def tab_fade(x: str) -> tuple[float, ...]:
     return tuple(map(unit_float, x.split()))
 
@@ -1167,6 +1198,36 @@ def symbol_map(val: str) -> Iterable[tuple[tuple[int, int], str]]:
 def narrow_symbols(val: str) -> Iterable[tuple[tuple[int, int], int]]:
     for x, y in symbol_map_parser(val, min_size=1):
         yield x, int(y or 1)
+
+
+def tab_bar_icon(val: str) -> Iterable[tuple[str, str]]:
+    name, sep, glyph = val.strip().partition(' ')
+    if not sep or not glyph.strip():
+        raise ValueError(f'tab_bar_icon needs: <exe-name> <glyph>, got: {val!r}')
+    yield name, glyph.strip()
+
+
+GIT_STATUS_FIELDS = frozenset({
+    'stashed', 'deleted', 'staged', 'modified', 'renamed',
+    'untracked', 'conflicted', 'ahead', 'behind',
+})
+
+
+def tab_bar_git_status(val: str) -> Iterable[tuple[str, tuple[str, Color]]]:
+    parts = val.split()
+    if len(parts) != 3:
+        raise ValueError(f'tab_bar_git_status needs: <field> <glyph> <color>, got: {val!r}')
+    field, glyph, color = parts
+    if field not in GIT_STATUS_FIELDS:
+        raise ValueError(f'Unknown git status field: {field}')
+    yield field, (glyph, to_color(color))
+
+
+def tab_bar_mode_name(val: str) -> Iterable[tuple[str, str]]:
+    mode, sep, name = val.strip().partition(' ')
+    if not sep or not name.strip():
+        raise ValueError(f'tab_bar_mode_name needs: <mode> <display>, got: {val!r}')
+    yield mode, name.strip()
 
 
 def parse_key_action(action: str, action_type: MapType = MapType.MAP) -> KeyAction:
