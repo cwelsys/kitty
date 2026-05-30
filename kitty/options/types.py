@@ -33,7 +33,7 @@ choices_for_progress_bar = typing.Literal['left', 'right', 'top', 'bottom', 'hid
 choices_for_scrollbar = typing.Literal['scrolled', 'always', 'never', 'hovered', 'scrolled-and-hovered']
 choices_for_strip_trailing_spaces = typing.Literal['always', 'never', 'smart']
 choices_for_tab_bar_align = typing.Literal['start', 'center', 'end', 'left', 'right']
-choices_for_tab_bar_style = typing.Literal['fade', 'hidden', 'powerline', 'separator', 'slant', 'custom']
+choices_for_tab_bar_style = typing.Literal['fade', 'hidden', 'powerline', 'separator', 'slant', 'custom', 'zones']
 choices_for_tab_powerline_style = typing.Literal['angled', 'round', 'slanted']
 choices_for_tab_switch_strategy = typing.Literal['last', 'left', 'previous', 'right']
 choices_for_terminfo_type = typing.Literal['path', 'direct', 'none']
@@ -463,14 +463,43 @@ option_names = (
     'tab_activity_symbol',
     'tab_bar_align',
     'tab_bar_background',
+    'tab_bar_content_separator',
     'tab_bar_edge',
+    'tab_bar_ellipsis',
     'tab_bar_filter',
+    'tab_bar_git_branch_color',
+    'tab_bar_git_branch_icon',
+    'tab_bar_git_branch_icon_color',
+    'tab_bar_git_directory_color',
+    'tab_bar_git_status',
+    'tab_bar_icon',
+    'tab_bar_icon_elements',
+    'tab_bar_left_icon',
+    'tab_bar_left_min_text_budget',
+    'tab_bar_left_mode_indicator',
+    'tab_bar_left_ssh_icon',
     'tab_bar_margin_color',
     'tab_bar_margin_height',
     'tab_bar_margin_width',
     'tab_bar_min_tabs',
+    'tab_bar_mode_bg',
+    'tab_bar_mode_fg',
+    'tab_bar_mode_indicator',
+    'tab_bar_mode_name',
+    'tab_bar_pill_border_left',
+    'tab_bar_pill_border_right',
+    'tab_bar_pill_separator',
+    'tab_bar_pill_spacing',
+    'tab_bar_right_icon',
+    'tab_bar_right_min_text_budget',
+    'tab_bar_right_ssh_icon',
     'tab_bar_show_new_tab_button',
+    'tab_bar_sticky_last_cmd',
     'tab_bar_style',
+    'tab_bar_zone_left',
+    'tab_bar_zone_right',
+    'tab_bar_zone_text_bg',
+    'tab_bar_zone_text_fg',
     'tab_fade',
     'tab_powerline_style',
     'tab_separator',
@@ -672,14 +701,40 @@ class Options:
     tab_activity_symbol: str = ''
     tab_bar_align: choices_for_tab_bar_align = 'start'
     tab_bar_background: kitty.fast_data_types.Color | None = None
+    tab_bar_content_separator: str = ' · '
     tab_bar_edge: int = 8
+    tab_bar_ellipsis: str = '…'
     tab_bar_filter: str = ''
+    tab_bar_git_branch_color: Color = Color(203, 166, 247)
+    tab_bar_git_branch_icon: str = ''
+    tab_bar_git_branch_icon_color: Color = Color(147, 153, 178)
+    tab_bar_git_directory_color: Color = Color(205, 214, 244)
+    tab_bar_icon_elements: tuple[str, ...] = ('index', 'icon')
+    tab_bar_left_icon: str = ''
+    tab_bar_left_min_text_budget: int = 4
+    tab_bar_left_mode_indicator: bool = False
+    tab_bar_left_ssh_icon: str = ''
     tab_bar_margin_color: kitty.fast_data_types.Color | None = None
     tab_bar_margin_height: TabBarMarginHeight = TabBarMarginHeight(outer=0, inner=0)
     tab_bar_margin_width: float = 0
     tab_bar_min_tabs: int = 2
+    tab_bar_mode_bg: kitty.fast_data_types.Color | None = None
+    tab_bar_mode_fg: kitty.fast_data_types.Color | None = None
+    tab_bar_mode_indicator: bool = True
+    tab_bar_pill_border_left: str = ''
+    tab_bar_pill_border_right: str = ''
+    tab_bar_pill_separator: str = ''
+    tab_bar_pill_spacing: int = 1
+    tab_bar_right_icon: str = ''
+    tab_bar_right_min_text_budget: int = 4
+    tab_bar_right_ssh_icon: str = ''
     tab_bar_show_new_tab_button: bool = False
+    tab_bar_sticky_last_cmd: bool = False
     tab_bar_style: choices_for_tab_bar_style = 'fade'
+    tab_bar_zone_left: tuple[str, ...] = ('cwd_git',)
+    tab_bar_zone_right: tuple[str, ...] = ()
+    tab_bar_zone_text_bg: kitty.fast_data_types.Color | None = None
+    tab_bar_zone_text_fg: kitty.fast_data_types.Color | None = None
     tab_fade: tuple[float, ...] = (0.25, 0.5, 0.75, 1.0)
     tab_powerline_style: choices_for_tab_powerline_style = 'angled'
     tab_separator: str = ' ┇'
@@ -737,6 +792,9 @@ class Options:
     narrow_symbols: dict[tuple[int, int], int] = {}
     remote_control_password: dict[str, collections.abc.Sequence[str]] = {}
     symbol_map: dict[tuple[int, int], str] = {}
+    tab_bar_git_status: dict[str, tuple[str, kitty.fast_data_types.Color]] = {}
+    tab_bar_icon: dict[str, str] = {}
+    tab_bar_mode_name: dict[str, str] = {}
     watcher: dict[str, str] = {}
     map: list[kitty.options.utils.KeyDefinition] = []
     keyboard_modes: KeyboardModeMap = {}
@@ -866,6 +924,9 @@ defaults.modify_font = {}
 defaults.narrow_symbols = {}
 defaults.remote_control_password = {}
 defaults.symbol_map = {}
+defaults.tab_bar_git_status = {}
+defaults.tab_bar_icon = {}
+defaults.tab_bar_mode_name = {}
 defaults.watcher = {}
 
 defaults.map = [
@@ -1163,6 +1224,10 @@ nullable_colors = frozenset({
     'window_title_bar_active_background',
     'window_title_bar_inactive_foreground',
     'window_title_bar_inactive_background',
+    'tab_bar_zone_text_bg',
+    'tab_bar_zone_text_fg',
+    'tab_bar_mode_bg',
+    'tab_bar_mode_fg',
     'tab_bar_background',
     'tab_bar_margin_color',
     'selection_foreground',
@@ -1431,6 +1496,13 @@ all_colors = frozenset({
     'window_title_bar_active_background',
     'window_title_bar_inactive_foreground',
     'window_title_bar_inactive_background',
+    'tab_bar_git_branch_color',
+    'tab_bar_git_branch_icon_color',
+    'tab_bar_git_directory_color',
+    'tab_bar_zone_text_bg',
+    'tab_bar_zone_text_fg',
+    'tab_bar_mode_bg',
+    'tab_bar_mode_fg',
     'active_tab_foreground',
     'active_tab_background',
     'inactive_tab_foreground',

@@ -429,6 +429,7 @@ class Tab:  # {{{
                 needs_attention = True
             if w.has_activity_since_last_focus:
                 has_activity_since_last_focus = True
+        active_window = t.active_window
         return TabBarData(
             title, is_active, needs_attention, t.id, t.os_window_id,
             len(t), t.num_window_groups, t.current_layout.name or '',
@@ -436,6 +437,10 @@ class Tab:  # {{{
             t.inactive_fg, t.inactive_bg, t.num_of_windows_with_progress,
             t.total_progress, t.last_focused_window_with_progress_id,
             t.created_in_session_name, t.active_session_name,
+            override_title=active_window.override_title or '' if active_window else '',
+            program_title=getattr(active_window, 'program_title', '') if active_window else '',
+            shell_title=getattr(active_window, 'shell_title', '') if active_window else '',
+            tab_name=t.name or '',
         )
 
     def active_window_changed(self) -> None:
@@ -1526,6 +1531,7 @@ class TabManager:  # {{{
             step = 1 if idx < nidx else -1
             for i in range(idx, nidx, step):
                 self.swap_tabs(i, i + step)
+            nidx = self.tabs.index(new_active_tab)
             self._set_active_tab(nidx)
             self.mark_tab_bar_dirty()
 
@@ -1571,6 +1577,7 @@ class TabManager:  # {{{
                 for i in range(idx, desired_idx, -1):
                     self.swap_tabs(i, i-1)
                 idx = desired_idx
+        idx = self.tabs.index(t)
         self._set_active_tab(idx)
         self.mark_tab_bar_dirty()
         return t
