@@ -248,6 +248,7 @@ func serialize_env(cd *connection_data, get_local_env func(string) (string, bool
 		env = append(env, &EnvInstruction{key: "KITTY_SHELL_INTEGRATION", delete_on_remote: true})
 	}
 	add_non_literal_env("KITTY_SSH_KITTEN_DATA_DIR", cd.host_opts.Remote_dir)
+	add_non_literal_env("KITTY_SSH_KITTEN_TERMINFO_DIR", remote_terminfo_dir(cd))
 	add_non_literal_env("KITTY_LOGIN_SHELL", cd.host_opts.Login_shell)
 	add_non_literal_env("KITTY_LOGIN_CWD", cd.host_opts.Cwd)
 	if cd.host_opts.Remote_kitty != Remote_kitty_no {
@@ -258,6 +259,20 @@ func serialize_env(cd *connection_data, get_local_env func(string) (string, bool
 		add_env("KITTY_LISTEN_ON", cd.listen_on)
 	}
 	return final_env_instructions(cd.script_type == "py", get_local_env, env...), ksi
+}
+
+// remote_terminfo_dir resolves the remote terminfo install directory, normalized
+// to a clean $HOME-relative path. Leading/trailing slashes are stripped so the
+// value matches between where make_tarfile places the database and where the
+// bootstrap (sh/py) looks for it; an empty value falls back to the .terminfo
+// default. Keeping this the single source of truth prevents the env var and the
+// tarball layout from ever disagreeing.
+func remote_terminfo_dir(cd *connection_data) string {
+	td := strings.Trim(cd.host_opts.Terminfo_dir, "/")
+	if td == "" {
+		td = ".terminfo"
+	}
+	return td
 }
 
 func make_tarfile(cd *connection_data, get_local_env func(string) (string, bool)) ([]byte, error) {
@@ -360,9 +375,10 @@ func make_tarfile(cd *connection_data, get_local_env func(string) (string, bool)
 			}
 		}
 	}
-	err = add_entries(path.Join("home", ".terminfo"), shell_integration.Data()["terminfo/kitty.terminfo"])
+	terminfo_dir := remote_terminfo_dir(cd)
+	err = add_entries(path.Join("home", terminfo_dir), shell_integration.Data()["terminfo/kitty.terminfo"])
 	if err == nil {
-		err = add_entries(path.Join("home", ".terminfo", "x"), shell_integration.Data()["terminfo/x/"+kitty.DefaultTermName])
+		err = add_entries(path.Join("home", terminfo_dir, "x"), shell_integration.Data()["terminfo/x/"+kitty.DefaultTermName])
 	}
 	if err == nil {
 		err = tw.Close()

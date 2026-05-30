@@ -130,6 +130,23 @@ copy --exclude **/w.* --exclude **/r d1
                 self.ae(len(glob.glob(f'{remote_home}/{tname}/*/xterm-kitty')), 2)
 
     @retry_on_failure()
+    def test_ssh_terminfo_dir(self):
+        for sh in self.all_possible_sh:
+            with tempfile.TemporaryDirectory() as remote_home:
+                tdir = '.local/share/terminfo'
+                pty = self.check_bootstrap(
+                    sh, remote_home, test_script='env; echo TERMINFO_DIR_LEAK_CHECK; exit 0',
+                    SHELL_INTEGRATION_VALUE='', terminfo_dir=tdir,
+                )
+                # terminfo is installed under the configured (XDG) dir, not the default ~/.terminfo
+                self.assertTrue(os.path.exists(f'{remote_home}/{tdir}/kitty.terminfo'))
+                self.assertTrue(os.path.lexists(f'{remote_home}/{tdir}/x/xterm-kitty'))
+                self.assertFalse(os.path.exists(f'{remote_home}/.terminfo/kitty.terminfo'))
+                # the bootstrap-only var must be unset before exec, not leaked into the user's shell
+                pty.wait_till(lambda: b'TERMINFO_DIR_LEAK_CHECK' in pty.received_bytes)
+                self.assertNotIn(b'KITTY_SSH_KITTEN_TERMINFO_DIR', pty.received_bytes)
+
+    @retry_on_failure()
     def test_ssh_env_vars(self):
         tset = '$A-$(echo no)-`echo no2` !Q5 "something else"'
         for sh in self.all_possible_sh:
@@ -263,9 +280,11 @@ shell_name=$(command basename "$login_shell")
                         self.assertEqual(pty.screen.cursor.shape, 0)
                         self.assertNotIn(b'\x1b]133;', pty.received_bytes)
 
-    def check_bootstrap(self, sh, home_dir, login_shell='', SHELL_INTEGRATION_VALUE='enabled', test_script='', pre_data='', conf='', launcher='sh', home=''):
+    def check_bootstrap(self, sh, home_dir, login_shell='', SHELL_INTEGRATION_VALUE='enabled', test_script='', pre_data='', conf='', launcher='sh', home='', terminfo_dir='.terminfo'):
         if login_shell:
             conf += f'\nlogin_shell {login_shell}'
+        if terminfo_dir != '.terminfo':
+            conf += f'\nterminfo_dir {terminfo_dir}'
         if 'python' in sh:
             if test_script.startswith('env;'):
                 test_script = f'os.execlp("sh", "sh", "-c", {test_script!r})'
@@ -296,7 +315,7 @@ shell_name=$(command basename "$login_shell")
                 q = pty.screen_contents()
                 return 'UNTAR_DONE' in q
             pty.wait_till(check_untar_or_fail, timeout=60)
-            self.assertTrue(os.path.exists(os.path.join(home_dir, '.terminfo/kitty.terminfo')))
+            self.assertTrue(os.path.exists(os.path.join(home_dir, terminfo_dir, 'kitty.terminfo')))
             if SHELL_INTEGRATION_VALUE != 'enabled':
                 pty.wait_till(lambda: len(pty.screen_contents().splitlines()) > 1, timeout=60)
                 self.assertEqual(pty.screen.cursor.shape, 0)
