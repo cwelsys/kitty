@@ -84,7 +84,7 @@ precmd_functions+=(_ksi_deferred_init)
 _ksi_deferred_init() {
     builtin emulate -L zsh -o no_warn_create_global -o no_aliases
 
-    # Recognized options: no-cursor, no-title, no-prompt-mark, no-complete, no-cwd, no-sudo.
+    # Recognized options: no-cursor, no-title, no-prompt-mark, no-complete, no-cwd, no-sudo, no-uservars.
     builtin local -a opt
     opt=(${(s: :)KITTY_SHELL_INTEGRATION})
     builtin unset KITTY_SHELL_INTEGRATION
@@ -95,6 +95,7 @@ _ksi_deferred_init() {
         if [[ ! "$PATH" =~ (^|:)${SSH_KITTEN_KITTY_DIR}(:|$) ]] && [[ -z "$(builtin command -v kitten)" ]]; then
             builtin export PATH="${PATH}:${SSH_KITTEN_KITTY_DIR}"
         fi
+        builtin local _ksi_is_ssh_kitten=y
         builtin unset SSH_KITTEN_KITTY_DIR
     fi
 
@@ -246,39 +247,54 @@ _ksi_deferred_init() {
         _ksi_report_pwd
     fi
 
+    # Enable user variable reporting for tab bar integration.
+    # Must come before title block so uservars are set before title triggers redraw.
+    if (( ! opt[(Ie)no-uservars] )); then
+        # Helper to emit OSC 1337 SetUserVar
+        _ksi_set_uservar() {
+            builtin local encoded
+            encoded=$(builtin printf '%s' "$2" | command base64 2>/dev/null) || builtin return
+            builtin print -nu $_ksi_fd '\e]1337;SetUserVar='"$1"'='"${encoded}"'\a'
+        }
+
+        # Report process name in preexec, clear in precmd
+        functions[_ksi_preexec]+='
+            _ksi_set_uservar PROC "${3%% *}"'
+
+        functions[_ksi_precmd]+='
+            _ksi_set_uservar PROC ""'
+
+        # Report remote host and CWD when connected via the SSH kitten
+        if [[ "$_ksi_is_ssh_kitten" == "y" ]]; then
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST "$HOST"
+                if [[ "$PWD" == "$HOME" ]]; then
+                    _ksi_set_uservar REMOTE_CWD "~"
+                elif [[ "$PWD" == "$HOME"/* ]]; then
+                    _ksi_set_uservar REMOTE_CWD "~/${PWD#$HOME/}"
+                else
+                    _ksi_set_uservar REMOTE_CWD "$PWD"
+                fi'
+        else
+            functions[_ksi_precmd]+='
+                _ksi_set_uservar REMOTE_HOST ""
+                _ksi_set_uservar REMOTE_CWD ""'
+        fi
+    fi
+
     # Enable terminal title changes.
     if (( ! opt[(Ie)no-title] )); then
-        # We don't use `print -P` because it depends on prompt options, which
-        # we don't control and cannot change.
-        #
-        # We use (V) in preexec to convert control characters to something visible
-        # (LF becomes \n, etc.). This isn't necessary in precmd because (%) does it
-        # for us.
-        builtin local is_ssh_session="n"
-        if [[ -n "$KITTY_PID" ]]; then
-            # kitty running locally
-        elif [[ -n "$SSH_TTY" || -n "$SSH2_TTY$KITTY_WINDOW_ID" ]]; then
-            # connected to most SSH servers
-            # or use ssh kitten to connected to some SSH servers that do not set SSH_TTY
-            is_ssh_session="y"
-        elif [[ -n "$(builtin command -v who)" ]]; then
-            # the shell integration script is installed manually on the remote system
-            # the environment variables are cleared after sudo
-            # OpenSSH's sshd creates entries in utmp for every login so use those
-            [[ "$(builtin command who -m 2> /dev/null)" =~ "\([a-fA-F.:0-9]+\)$" ]] && is_ssh_session="y"
-        fi
+        # Helper to set shell title layer via uservar
+        _ksi_set_shell_title() {
+            builtin local encoded
+            encoded=$(builtin printf '%s' "$1" | command base64 2>/dev/null) || return
+            builtin print -nu $_ksi_fd '\e]1337;SetUserVar=SHELL_TITLE='"${encoded}"'\a'
+        }
 
-        if [[ "$is_ssh_session" == "y" ]]; then
-            functions[_ksi_precmd]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)\${HOST-}/%.*/}: \${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
-            functions[_ksi_preexec]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)\${HOST-}/%.*/}: \${(V)1}\"\$'\\a'"
-        else
-            functions[_ksi_precmd]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(%):-%(4~|…/%3~|%~)}\"\$'\\a'"
-            functions[_ksi_preexec]+="
-                builtin print -rnu $_ksi_fd \$'\\e]2;'\"\${(V)1}\"\$'\\a'"
-        fi
+        functions[_ksi_precmd]+='
+            _ksi_set_shell_title ""'
+        functions[_ksi_preexec]+='
+            _ksi_set_shell_title "${(V)1}"'
     fi
 
     # Enable cursor shape changes depending on the current keymap.

@@ -219,12 +219,15 @@ RPS1="{rps1}"
             except TimeoutError as e:
                 raise AssertionError(f'Cursor was not changed to beam. Screen contents: {repr(pty.screen_contents())}') from e
             pty.wait_till(lambda: pty.screen_contents() == q)
-            self.ae(pty.callbacks.titlebuf[-1], '~')
+            # The shell reports a title *layer* rather than setting the terminal
+            # title, and only while a command runs: at the prompt the layer is
+            # cleared so the program title (or kitty's own) shows through.
+            self.ae(pty.callbacks.titlebuf[-1], '')
             pty.callbacks.clear()
             pty.send_cmd_to_child('mkdir test && ls -a')
             self.assert_command(pty)
             pty.wait_till(lambda: pty.screen_contents().count(rps1) == 2)
-            self.ae(pty.callbacks.titlebuf[-2:], ['mkdir test && ls -a', '~'])
+            self.ae(pty.callbacks.titlebuf[-2:], ['mkdir test && ls -a', ''])
             q = '\n'.join(str(pty.screen.line(i)) for i in range(1, pty.screen.cursor.y))
             self.ae(pty.last_cmd_output(), q)
             # shrink the screen
