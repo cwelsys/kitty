@@ -20,8 +20,9 @@ from kitty.options.utils import (
     parse_map, parse_mouse_map, paste_actions, pointer_shape_when_dragging, remote_control_password,
     resize_debounce_time, scrollback_lines, scrollback_pager_history_size, scrollbar_color,
     shell_integration, show_hyperlink_targets, store_multiple, symbol_map, tab_activity_symbol,
-    tab_bar_edge, tab_bar_margin_height, tab_bar_min_tabs, tab_fade, tab_font_style, tab_separator,
-    tab_title_template, text_fg_override_threshold, titlebar_color, to_cursor_shape,
+    tab_bar_content_separator, tab_bar_edge, tab_bar_git_status, tab_bar_icon, tab_bar_icon_elements,
+    tab_bar_margin_height, tab_bar_min_tabs, tab_bar_mode_name, tab_bar_zone, tab_fade, tab_font_style,
+    tab_separator, tab_title_template, text_fg_override_threshold, titlebar_color, to_cursor_shape,
     to_cursor_unfocused_shape, to_font_size, to_layout_names, to_modifiers,
     transparent_background_colors, underline_exclusion, url_prefixes, url_style, visual_bell_duration,
     visual_window_select_characters, window_border_width, window_logo_scale, window_size
@@ -1367,11 +1368,52 @@ class Parser:
     def tab_bar_background(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_background'] = to_color_or_none(val)
 
+    def tab_bar_content_separator(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_content_separator'] = tab_bar_content_separator(val)
+
     def tab_bar_edge(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_edge'] = tab_bar_edge(val)
 
+    def tab_bar_ellipsis(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_ellipsis'] = tab_bar_content_separator(val)
+
     def tab_bar_filter(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_filter'] = str(val)
+
+    def tab_bar_git_branch_color(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_git_branch_color'] = to_color(val)
+
+    def tab_bar_git_branch_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_git_branch_icon'] = tab_activity_symbol(val)
+
+    def tab_bar_git_branch_icon_color(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_git_branch_icon_color'] = to_color(val)
+
+    def tab_bar_git_directory_color(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_git_directory_color'] = to_color(val)
+
+    def tab_bar_git_status(self, val: str, ans: dict[str, typing.Any]) -> None:
+        for k, v in tab_bar_git_status(val):
+            ans["tab_bar_git_status"][k] = v
+
+    def tab_bar_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        for k, v in tab_bar_icon(val):
+            ans["tab_bar_icon"][k] = v
+
+    def tab_bar_icon_elements(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_icon_elements'] = tab_bar_icon_elements(val)
+
+    def tab_bar_left_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_left_icon'] = tab_bar_content_separator(val)
+
+    def tab_bar_left_min_text_budget(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_left_min_text_budget'] = positive_int(val)
+
+    def tab_bar_left_mode_indicator(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_left_mode_indicator'] = to_bool(val)
+
+    def tab_bar_left_ssh_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_left_ssh_icon'] = tab_bar_content_separator(val)
 
     def tab_bar_margin_color(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_margin_color'] = to_color_or_none(val)
@@ -1385,8 +1427,45 @@ class Parser:
     def tab_bar_min_tabs(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_min_tabs'] = tab_bar_min_tabs(val)
 
+    def tab_bar_mode_bg(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_mode_bg'] = to_color_or_none(val)
+
+    def tab_bar_mode_fg(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_mode_fg'] = to_color_or_none(val)
+
+    def tab_bar_mode_indicator(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_mode_indicator'] = to_bool(val)
+
+    def tab_bar_mode_name(self, val: str, ans: dict[str, typing.Any]) -> None:
+        for k, v in tab_bar_mode_name(val):
+            ans["tab_bar_mode_name"][k] = v
+
+    def tab_bar_pill_border_left(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_pill_border_left'] = tab_bar_content_separator(val)
+
+    def tab_bar_pill_border_right(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_pill_border_right'] = tab_bar_content_separator(val)
+
+    def tab_bar_pill_separator(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_pill_separator'] = tab_bar_content_separator(val)
+
+    def tab_bar_pill_spacing(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_pill_spacing'] = positive_int(val)
+
+    def tab_bar_right_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_right_icon'] = tab_bar_content_separator(val)
+
+    def tab_bar_right_min_text_budget(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_right_min_text_budget'] = positive_int(val)
+
+    def tab_bar_right_ssh_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_right_ssh_icon'] = tab_bar_content_separator(val)
+
     def tab_bar_show_new_tab_button(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_show_new_tab_button'] = to_bool(val)
+
+    def tab_bar_sticky_last_cmd(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_sticky_last_cmd'] = to_bool(val)
 
     def tab_bar_style(self, val: str, ans: dict[str, typing.Any]) -> None:
         val = val.lower()
@@ -1394,7 +1473,19 @@ class Parser:
             raise ValueError(f"The value {val} is not a valid choice for tab_bar_style")
         ans["tab_bar_style"] = val
 
-    choices_for_tab_bar_style = frozenset(('fade', 'hidden', 'powerline', 'separator', 'slant', 'custom'))
+    choices_for_tab_bar_style = frozenset(('fade', 'hidden', 'powerline', 'separator', 'slant', 'custom', 'zones'))
+
+    def tab_bar_zone_left(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_zone_left'] = tab_bar_zone(val)
+
+    def tab_bar_zone_right(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_zone_right'] = tab_bar_zone(val)
+
+    def tab_bar_zone_text_bg(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_zone_text_bg'] = to_color_or_none(val)
+
+    def tab_bar_zone_text_fg(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_zone_text_fg'] = to_color_or_none(val)
 
     def tab_fade(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_fade'] = tab_fade(val)
@@ -1624,6 +1715,9 @@ def create_result_dict() -> dict[str, typing.Any]:
         'narrow_symbols': {},
         'remote_control_password': {},
         'symbol_map': {},
+        'tab_bar_git_status': {},
+        'tab_bar_icon': {},
+        'tab_bar_mode_name': {},
         'watcher': {},
         'map': [],
         'mouse_map': [],

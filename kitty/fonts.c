@@ -1161,6 +1161,37 @@ apply_horizontal_alignment(pixel *canvas, RunFont rf, bool center_glyph, GlyphRe
     if (delta > 0) right_shift_canvas(canvas, ri.canvas_width, canvas_height, delta);
 }
 
+static void
+apply_vertical_centering(pixel *canvas, unsigned canvas_width, unsigned cell_height) {
+    // Center the rendered ink vertically in the cell. Used for PUA
+    // glyph+space ligatures (Nerd Font style icons) so they align to the
+    // optical middle of the line like inline images in a word processor,
+    // instead of hanging from the text baseline.
+    unsigned first = cell_height, last = 0;
+    for (unsigned y = 0; y < cell_height; y++) {
+        const pixel *row = canvas + (size_t)y * canvas_width;
+        for (unsigned x = 0; x < canvas_width; x++) {
+            if (row[x]) { if (y < first) first = y; last = y; break; }
+        }
+    }
+    if (first >= last) return;
+    const unsigned ink_height = last - first + 1;
+    const int delta = (int)(cell_height - ink_height) / 2 - (int)first;
+    if (!delta) return;
+    const size_t row_sz = sizeof(pixel) * canvas_width;
+    if (delta > 0) {
+        for (int y = (int)last; y >= (int)first; y--)
+            memcpy(canvas + ((size_t)y + delta) * canvas_width, canvas + (size_t)y * canvas_width, row_sz);
+        for (int y = (int)first; y < (int)first + delta; y++)
+            memset(canvas + (size_t)y * canvas_width, 0, row_sz);
+    } else {
+        for (int y = (int)first; y <= (int)last; y++)
+            memcpy(canvas + (size_t)(y + delta) * canvas_width, canvas + (size_t)y * canvas_width, row_sz);
+        for (int y = (int)last + delta + 1; y <= (int)last; y++)
+            memset(canvas + (size_t)y * canvas_width, 0, row_sz);
+    }
+}
+
 
 static void
 render_group(
@@ -1243,6 +1274,10 @@ render_group(
     apply_horizontal_alignment(
         canvas, rf, center_glyph, ri, canvas_width,
         scaled_metrics.cell_height, num_scaled_cells, num_glyphs, was_colored);
+    // center_glyph is set only for PUA+space ligature runs; emoji
+    // (was_colored) already fill the cell and are left alone.
+    if (center_glyph && !was_colored && num_glyphs && num_scaled_cells > 1)
+        apply_vertical_centering(canvas, ri.canvas_width, scaled_metrics.cell_height);
     if (PyErr_Occurred()) PyErr_Print();
     // display_glyph(canvas, canvas_width, scaled_metrics.cell_height); printf("\n");
 
@@ -1958,10 +1993,11 @@ render_line(FONTS_DATA_HANDLE fg_, Line *line, index_type lnum, Cursor *cursor, 
                 space_cell->decoration_fg = gpu_cell->decoration_fg;
             }
             if (num_spaces) {
-                center_glyph = true;
                 RENDER
-                center_glyph = false;
-                render_run(fg, line->cpu_cells + i, line->gpu_cells + i, num_spaces + 1, cell_font, true, center_glyph, -1, disable_ligature_strategy, line->text_cache, lc);
+                // The PUA+space ligature itself is the run to center, not the
+                // preceding run. Pass center_glyph=true so monochrome symbol
+                // glyphs are centered in their multi-cell span like emoji.
+                render_run(fg, line->cpu_cells + i, line->gpu_cells + i, num_spaces + 1, cell_font, true, true, -1, disable_ligature_strategy, line->text_cache, lc);
                 run_font = basic_font;
                 first_cell_in_run = i + num_spaces + 1;
                 i += num_spaces;

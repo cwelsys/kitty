@@ -24,6 +24,7 @@ from .fast_data_types import (
     GLFW_PRESS,
     GLFW_RELEASE,
     add_tab,
+    add_timer,
     attach_window,
     buffer_keys_in_window,
     current_focused_os_window_id,
@@ -429,6 +430,7 @@ class Tab:  # {{{
                 needs_attention = True
             if w.has_activity_since_last_focus:
                 has_activity_since_last_focus = True
+        active_window = t.active_window
         return TabBarData(
             title, is_active, needs_attention, t.id, t.os_window_id,
             len(t), t.num_window_groups, t.current_layout.name or '',
@@ -436,6 +438,10 @@ class Tab:  # {{{
             t.inactive_fg, t.inactive_bg, t.num_of_windows_with_progress,
             t.total_progress, t.last_focused_window_with_progress_id,
             t.created_in_session_name, t.active_session_name,
+            override_title=active_window.override_title or '' if active_window else '',
+            program_title=getattr(active_window, 'program_title', '') if active_window else '',
+            shell_title=getattr(active_window, 'shell_title', '') if active_window else '',
+            tab_name=t.name or '',
         )
 
     def active_window_changed(self) -> None:
@@ -1189,6 +1195,7 @@ class TabManager:  # {{{
     window_being_dropped: WindowBeingDropped | None = None
     window_drag_target_tab_id: int = 0
     window_drag_over_me: bool = False
+    _deferred_tab_bar_refresh_pending: bool = False
 
     def __init__(self, os_window_id: int, args: CLIOptions, wm_class: str, wm_name: str, startup_session: SessionType | None = None):
         self.os_window_id = os_window_id
@@ -1338,6 +1345,19 @@ class TabManager:  # {{{
         self.mark_tab_bar_dirty()
         if tab is self.active_tab:
             sync_os_window_title(self.os_window_id)
+        # A title change (e.g. shell preexec) often lands just *before* the
+        # foreground process actually changes, so anything derived from the
+        # foreground process (tab bar icons) is redrawn one event too early.
+        # Refresh once more shortly after to pick up the settled state.
+        if not self._deferred_tab_bar_refresh_pending:
+            self._deferred_tab_bar_refresh_pending = True
+            add_timer(self._deferred_tab_bar_refresh, 0.35, False)
+
+    def _deferred_tab_bar_refresh(self, timer_id: int | None = None) -> None:
+        self._deferred_tab_bar_refresh_pending = False
+        # The TabManager may have been destroyed while the timer was pending.
+        if getattr(self, 'tabs', None):
+            self.mark_tab_bar_dirty()
 
     def resize(self, only_tabs: bool = False) -> None:
         if not only_tabs:
@@ -1526,6 +1546,7 @@ class TabManager:  # {{{
             step = 1 if idx < nidx else -1
             for i in range(idx, nidx, step):
                 self.swap_tabs(i, i + step)
+            nidx = self.tabs.index(new_active_tab)
             self._set_active_tab(nidx)
             self.mark_tab_bar_dirty()
 
@@ -1571,6 +1592,7 @@ class TabManager:  # {{{
                 for i in range(idx, desired_idx, -1):
                     self.swap_tabs(i, i-1)
                 idx = desired_idx
+        idx = self.tabs.index(t)
         self._set_active_tab(idx)
         self.mark_tab_bar_dirty()
         return t
