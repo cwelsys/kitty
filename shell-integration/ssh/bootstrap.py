@@ -144,7 +144,10 @@ def compile_terminfo(base):
             tic = ''
     if not tic:
         return
-    tname = '.terminfo'
+    tname = os.environ.get('KITTY_SSH_KITTEN_TERMINFO_DIR', '.terminfo')
+    # kitty.terminfo is always extracted under the configured dir; remember it
+    # because tname is reassigned to .terminfo.cdb on NetBSD below.
+    source_tname = tname
     q = os.path.join(base, tname, '78', 'xterm-kitty')
     if not os.path.exists(q):
         try:
@@ -154,12 +157,14 @@ def compile_terminfo(base):
                 raise
         os.symlink('../x/xterm-kitty', q)
     if os.path.exists('/usr/share/misc/terminfo.cdb'):
-        # NetBSD requires this
-        os.symlink('../../.terminfo.cdb', os.path.join(base, tname, 'x', 'xterm-kitty'))
-        tname += '.cdb'
+        # NetBSD requires this. Use an absolute target and the fixed .terminfo.cdb
+        # name (matching bootstrap-utils.sh) so this is correct regardless of the
+        # number of path components in tname (e.g. an XDG terminfo dir).
+        os.symlink(os.path.join(HOME, '.terminfo.cdb'), os.path.join(base, tname, 'x', 'xterm-kitty'))
+        tname = '.terminfo.cdb'
     os.environ['TERMINFO'] = os.path.join(HOME, tname)
     p = subprocess.Popen(
-        [tic, '-x', '-o', os.path.join(base, tname), os.path.join(base, '.terminfo', 'kitty.terminfo')],
+        [tic, '-x', '-o', os.path.join(base, tname), os.path.join(base, source_tname, 'kitty.terminfo')],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     output = p.stdout.read()
@@ -227,6 +232,8 @@ def get_data():
         data_dir = os.path.abspath(data_dir)
         shell_integration_dir = os.path.join(data_dir, 'shell-integration')
         compile_terminfo(tdir + '/home')
+        # Remove the bootstrap-only var so it does not leak into the user's shell.
+        os.environ.pop('KITTY_SSH_KITTEN_TERMINFO_DIR', None)
         move(tdir + '/home', HOME)
         if os.path.exists(tdir + '/root'):
             move(tdir + '/root', '/')
