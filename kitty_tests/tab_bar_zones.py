@@ -64,6 +64,103 @@ class TestTabBarZones(BaseTest):
         self.ae(counts['untracked'], 1)
         self.ae(counts['conflicted'], 1)
 
+    def test_git_cache_key_tracks_head_and_refs(self):
+        # Regression: the status cache key must change when HEAD or the current
+        # branch ref or FETCH_HEAD change, not only when .git/index changes.
+        # Otherwise `git branch -m`, fetch/push ahead-behind drift and
+        # `reset --soft` leave the tab-bar git zone showing stale data.
+        import os
+        import tempfile
+        from pathlib import Path
+        from kitty.tab_bar_zones.gitstatus import status_cache_key
+
+        def settime(p, t):
+            os.utime(p, (t, t))
+
+        with tempfile.TemporaryDirectory() as td:
+            gd = Path(td) / '.git'
+            (gd / 'refs' / 'heads').mkdir(parents=True)
+            (gd / 'index').write_text('x')
+            (gd / 'HEAD').write_text('ref: refs/heads/main\n')
+            (gd / 'refs' / 'heads' / 'main').write_text('abc\n')
+            for p in (gd / 'index', gd / 'HEAD', gd / 'refs' / 'heads' / 'main'):
+                settime(p, 1000)
+            key1 = status_cache_key(gd)
+
+            # `git branch -m` rewrites HEAD (index untouched) -> key must change
+            (gd / 'HEAD').write_text('ref: refs/heads/renamed\n')
+            settime(gd / 'HEAD', 2000)
+            key2 = status_cache_key(gd)
+            self.assertNotEqual(key1, key2)
+
+            # fetch/reset moves the current branch ref (index untouched) -> change
+            (gd / 'refs' / 'heads' / 'renamed').write_text('def\n')
+            settime(gd / 'refs' / 'heads' / 'renamed', 3000)
+            key3 = status_cache_key(gd)
+            self.assertNotEqual(key2, key3)
+
+            # fetch updates FETCH_HEAD (ahead/behind drift) -> change
+            (gd / 'FETCH_HEAD').write_text('ghi\n')
+            settime(gd / 'FETCH_HEAD', 4000)
+            key4 = status_cache_key(gd)
+            self.assertNotEqual(key3, key4)
+
+    def test_git_cache_key_packed_refs_fallback(self):
+        # When the current branch is packed (loose ref absent), packed-refs mtime
+        # stands in so a `git pack-refs`/fetch still invalidates.
+        import os
+        import tempfile
+        from pathlib import Path
+        from kitty.tab_bar_zones.gitstatus import status_cache_key
+        with tempfile.TemporaryDirectory() as td:
+            gd = Path(td) / '.git'
+            (gd / 'refs' / 'heads').mkdir(parents=True)
+            (gd / 'index').write_text('x')
+            (gd / 'HEAD').write_text('ref: refs/heads/main\n')
+            (gd / 'packed-refs').write_text('abc refs/heads/main\n')
+            for p in (gd / 'index', gd / 'HEAD', gd / 'packed-refs'):
+                os.utime(p, (1000, 1000))
+            key1 = status_cache_key(gd)
+            os.utime(gd / 'packed-refs', (2000, 2000))
+            key2 = status_cache_key(gd)
+            self.assertNotEqual(key1, key2)
+
+    def test_parse_git_output_no_double_count_delete(self):
+        # A file deleted in both index and worktree (xy="DD") must count once.
+        from kitty.tab_bar_zones.gitstatus import parse_git_output
+        raw = (
+            '# branch.head main\n'
+            '1 DD N... 100644 100644 100644 aaa bbb gone\n'
+        )
+        _, counts = parse_git_output(raw)
+        self.ae(counts['deleted'], 1)
+        self.ae(counts['modified'], 0)  # must not leak into modified either
+
+    def test_find_git_dir_does_not_cache_non_repo(self):
+        # A non-repo cwd must not be cached as None forever; otherwise `git init`
+        # in an open pane never shows a git zone until the cache cap clears.
+        import tempfile
+        from kitty.tab_bar_zones import gitstatus
+        gitstatus.clear_caches()
+        with tempfile.TemporaryDirectory() as td:
+            self.assertIsNone(gitstatus.find_git_dir(td))
+            self.assertNotIn(td, gitstatus._git_dir_cache)
+
+    def test_find_git_dir_relative_gitdir_pointer(self):
+        # `.git` file with a relative `gitdir:` (submodules) must resolve against
+        # the repo dir, not kitty's process CWD.
+        import tempfile
+        from pathlib import Path
+        from kitty.tab_bar_zones import gitstatus
+        gitstatus.clear_caches()
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / 'sub'
+            repo.mkdir()
+            real = Path(td) / '.git' / 'modules' / 'sub'
+            real.mkdir(parents=True)
+            (repo / '.git').write_text('gitdir: ../.git/modules/sub\n')
+            self.ae(gitstatus.find_git_dir(str(repo)), real.resolve())
+
     def test_abbreviate_path(self):
         import os
         from kitty.tab_bar_zones.text import abbreviate_path
@@ -74,6 +171,23 @@ class TestTabBarZones(BaseTest):
         out = abbreviate_path(long, 20, home, '…')
         self.assertLessEqual(len(out), 20)
         self.assertTrue(out.endswith('target'))
+
+    def test_truncate_text_respects_display_width(self):
+        # Wide chars are 2 cells; slicing by codepoint overflows the cell budget.
+        from kitty.tab_bar_zones.text import truncate_text, display_width
+        out = truncate_text('日本語abc', 5, '…')
+        self.assertLessEqual(display_width(out), 5)
+        self.assertTrue(out.endswith('…'))
+        # budget <= ellipsis width: still must not overflow
+        self.assertLessEqual(display_width(truncate_text('日本語', 1, '…')), 1)
+        # pure-ascii behaviour unchanged
+        self.ae(truncate_text('abcdef', 4, '…'), 'abc…')
+
+    def test_abbreviate_path_respects_display_width(self):
+        from kitty.tab_bar_zones.text import abbreviate_path, display_width
+        # last component itself wider than budget -> hits the final hard truncate
+        out = abbreviate_path('/x/日本語日本語日本語', 6, '/none', '…')
+        self.assertLessEqual(display_width(out), 6)
 
     def test_color_resolver(self):
         from kitty.tab_bar_zones.colors import ColorResolver

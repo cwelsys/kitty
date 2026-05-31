@@ -4,7 +4,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-_git_cache: dict[str, tuple[tuple[float, float], tuple[str, dict[str, int]]]] = {}
+_git_cache: dict[str, tuple[tuple[float, ...], tuple[str, dict[str, int]]]] = {}
 _GIT_CACHE_MAX = 50
 _git_dir_cache: dict[str, Path | None] = {}
 _GIT_DIR_CACHE_MAX = 100
@@ -26,13 +26,51 @@ def find_git_dir(cwd: str) -> Path | None:
                 content = git_path.read_text().strip()
                 if content.startswith("gitdir:"):
                     result = Path(content[7:].strip())
+                    if not result.is_absolute():  # submodules use a relative pointer
+                        result = (parent / result).resolve()
                     _git_dir_cache[cwd] = result
                     return result
-        _git_dir_cache[cwd] = None
+        # Don't cache a non-repo cwd: it's cheap to re-probe and caching None
+        # would hide a later `git init` until the cache cap clears.
         return None
     except Exception:
-        _git_dir_cache[cwd] = None
         return None
+
+
+def _mtime(p: Path) -> float:
+    try:
+        return p.stat().st_mtime
+    except Exception:
+        return 0.0
+
+
+def status_cache_key(git_dir: Path) -> tuple[float, ...]:
+    """mtimes of every file whose change should invalidate cached git status.
+
+    `git status --branch` reports HEAD and tracking-ref state, none of which is
+    reflected in .git/index. So the key must also watch .git/HEAD (branch rename,
+    detached-HEAD checkout), the current branch ref (fetch/push/reset moving it;
+    packed-refs as the fallback when the loose ref is absent) and FETCH_HEAD
+    (ahead/behind drift after a fetch).
+    """
+    index_mtime = _mtime(git_dir / "index")
+    stash_mtime = _mtime(git_dir / "refs" / "stash")
+    head_path = git_dir / "HEAD"
+    head_mtime = _mtime(head_path)
+    fetch_head_mtime = _mtime(git_dir / "FETCH_HEAD")
+
+    branch_ref_mtime = 0.0
+    try:
+        head_content = head_path.read_text().strip()
+    except Exception:
+        head_content = ""
+    if head_content.startswith("ref: "):
+        loose = git_dir / head_content[5:].strip()
+        if loose.exists():
+            branch_ref_mtime = _mtime(loose)
+        else:
+            branch_ref_mtime = _mtime(git_dir / "packed-refs")
+    return (index_mtime, stash_mtime, head_mtime, branch_ref_mtime, fetch_head_mtime)
 
 
 def parse_git_output(raw: str) -> tuple[str, dict[str, int]]:
@@ -67,7 +105,8 @@ def parse_git_output(raw: str) -> tuple[str, dict[str, int]]:
                     elif xy[0] not in (".", "?"):
                         counts["staged"] += 1
                     if xy[1] == "D":
-                        counts["deleted"] += 1
+                        if xy[0] != "D":  # don't double-count a fully-deleted file
+                            counts["deleted"] += 1
                     elif xy[1] not in (".", "?"):
                         counts["modified"] += 1
         elif line.startswith("u "):
@@ -82,19 +121,8 @@ def get_git_status(cwd: str) -> tuple[str, dict[str, int]] | None:
     if not git_dir:
         return None
 
-    index = git_dir / "index"
-    try:
-        current_mtime = index.stat().st_mtime if index.exists() else 0
-    except Exception:
-        current_mtime = 0
-
     stash_ref = git_dir / "refs" / "stash"
-    try:
-        stash_mtime = stash_ref.stat().st_mtime if stash_ref.exists() else 0
-    except Exception:
-        stash_mtime = 0
-
-    combined_mtime = (current_mtime, stash_mtime)
+    combined_mtime = status_cache_key(git_dir)
     repo_key = str(git_dir.parent) if git_dir.name == ".git" else str(git_dir)
 
     if repo_key in _git_cache:

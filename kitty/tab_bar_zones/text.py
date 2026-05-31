@@ -13,6 +13,19 @@ def display_width(s: str) -> int:
     return w if w >= 0 else len(s)
 
 
+def _take_width(text: str, budget: int) -> str:
+    """Longest prefix of text whose display width is <= budget."""
+    out = []
+    w = 0
+    for ch in text:
+        cw = display_width(ch)
+        if w + cw > budget:
+            break
+        out.append(ch)
+        w += cw
+    return "".join(out)
+
+
 def abbreviate_path(cwd: str, max_len: int, home: str, ellipsis: str) -> str | None:
     if not cwd:
         return None
@@ -42,7 +55,7 @@ def abbreviate_path(cwd: str, max_len: int, home: str, ellipsis: str) -> str | N
     if display_width(parts[-1]) <= max_len:
         return parts[-1]
     if max_len > display_width(ellipsis):
-        return parts[-1][:max_len - display_width(ellipsis)] + ellipsis
+        return _take_width(parts[-1], max_len - display_width(ellipsis)) + ellipsis
     return None
 
 
@@ -52,5 +65,7 @@ def truncate_text(text: str, budget: int, ellipsis: str) -> str:
         return ""
     ell_w = display_width(ellipsis)
     if budget <= ell_w:
-        return text[:budget]
-    return text[:budget - ell_w] + ellipsis
+        return _take_width(text, budget)
+    if display_width(text) <= budget:
+        return text
+    return _take_width(text, budget - ell_w) + ellipsis
