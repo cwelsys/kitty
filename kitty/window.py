@@ -1894,6 +1894,9 @@ class Window:
             if pop:
                 if self.title_stack:
                     self.child_title = self.title_stack.pop()
+                    # Re-derive the program layer so the restored title isn't
+                    # shadowed by a stale program_title (mirrors title_changed).
+                    self.program_title = self.child_title if self.child_title != self.default_title else ''
                     self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
                     self.title_updated()
             else:
