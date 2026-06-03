@@ -93,3 +93,72 @@ class CwdPolicy(BaseTest):
             reported='/home/u/proj', child_is_remote=False, at_prompt=False,
             foreground_is_nested_shell=False, heuristic_cwd='/h', mode='prompt_gated'),
             '/h')
+
+    def _fake_window(self, **kw):
+        from types import SimpleNamespace
+        from kitty.window import Window
+        defaults = dict(
+            last_reported_cwd='kitty-shell-cwd://host/home/u/proj',
+            child_is_remote=False, at_prompt=False,
+            fg_pid=2000, root_pid=1000, fg_exe='/usr/bin/make',
+            heuristic='/', root_cwd='/home/u',
+        )
+        defaults.update(kw)
+        child = SimpleNamespace(
+            pid=defaults['root_pid'],
+            get_pid_for_cwd=lambda oldest=False: defaults['fg_pid'],
+            get_foreground_exe=lambda oldest=False: defaults['fg_exe'],
+        )
+        fake = SimpleNamespace(
+            screen=SimpleNamespace(last_reported_cwd=defaults['last_reported_cwd']),
+            child=child,
+            child_is_remote=defaults['child_is_remote'],
+            at_prompt=defaults['at_prompt'],
+            get_cwd_of_child=lambda oldest=False: defaults['heuristic'],
+            get_cwd_of_root_child=lambda: defaults['root_cwd'],
+        )
+        # bind the real methods under test to the fake
+        fake._foreground_is_nested_shell = lambda oldest=False: Window._foreground_is_nested_shell(fake, oldest)
+        fake.resolved_cwd = lambda oldest=False, request_type=None: (
+            Window.resolved_cwd(fake, oldest) if request_type is None
+            else Window.resolved_cwd(fake, oldest, request_type))
+        return fake
+
+    def test_nested_shell_detection(self):
+        # foreground is make (not a shell) -> not nested
+        w = self._fake_window(fg_exe='/usr/bin/make', fg_pid=2000, root_pid=1000)
+        self.assertFalse(w._foreground_is_nested_shell())
+        # foreground is a nested zsh (pid != integrated shell) -> nested
+        w = self._fake_window(fg_exe='/usr/bin/zsh', fg_pid=2000, root_pid=1000)
+        self.assertTrue(w._foreground_is_nested_shell())
+        # foreground IS the integrated shell -> not nested
+        w = self._fake_window(fg_exe='/usr/bin/zsh', fg_pid=1000, root_pid=1000)
+        self.assertFalse(w._foreground_is_nested_shell())
+
+    def test_resolved_cwd_build_case_prefers_reported(self):
+        # job running, heuristic poisoned to '/', non-shell foreground
+        w = self._fake_window(heuristic='/', fg_exe='/usr/bin/make', at_prompt=False)
+        self.ae(w.resolved_cwd(), '/home/u/proj')
+
+    def test_resolved_cwd_nested_shell_uses_heuristic(self):
+        w = self._fake_window(heuristic='/etc', fg_exe='/usr/bin/zsh', fg_pid=2000, root_pid=1000)
+        self.ae(w.resolved_cwd(), '/etc')
+
+    def test_resolved_cwd_no_osc7_uses_heuristic(self):
+        w = self._fake_window(last_reported_cwd='', heuristic='/srv')
+        self.ae(w.resolved_cwd(), '/srv')
+
+    def test_resolved_cwd_last_reported_request(self):
+        from kitty.window import CwdRequestType
+        # nested shell would normally use heuristic, but last_reported forces reported
+        w = self._fake_window(heuristic='/etc', fg_exe='/usr/bin/zsh', fg_pid=2000, root_pid=1000)
+        self.ae(w.resolved_cwd(request_type=CwdRequestType.last_reported), '/home/u/proj')
+
+    def test_resolved_cwd_root_request_prompt_gated(self):
+        from kitty.window import CwdRequestType
+        # not at prompt -> root child cwd (heuristic root)
+        w = self._fake_window(at_prompt=False, root_cwd='/home/u', heuristic='/x')
+        self.ae(w.resolved_cwd(request_type=CwdRequestType.root), '/home/u')
+        # at prompt -> reported
+        w = self._fake_window(at_prompt=True, root_cwd='/home/u')
+        self.ae(w.resolved_cwd(request_type=CwdRequestType.root), '/home/u/proj')
