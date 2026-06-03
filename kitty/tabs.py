@@ -475,7 +475,7 @@ class Tab:  # {{{
 
     def get_cwd_of_active_window(self, oldest: bool = False) -> str | None:
         w = self.active_window
-        return w.get_cwd_of_child(oldest) if w else None
+        return w.resolved_cwd(oldest=oldest) if w else None
 
     def get_exe_of_active_window(self, oldest: bool = False) -> str | None:
         w = self.active_window
