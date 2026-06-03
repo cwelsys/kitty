@@ -168,12 +168,8 @@ class CwdRequest:
         window = self.window
         if not window:
             return ''
-        reported_cwd = path_from_osc7_url(window.screen.last_reported_cwd) if window.screen.last_reported_cwd else ''
-        if reported_cwd and not window.child_is_remote and (self.request_type is CwdRequestType.last_reported or window.at_prompt):
-            return reported_cwd
-        if self.request_type is CwdRequestType.root:
-            return window.get_cwd_of_root_child() or ''
-        return window.get_cwd_of_child(oldest=self.request_type is CwdRequestType.oldest) or ''
+        return window.resolved_cwd(
+            oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
 
     def modify_argv_for_launch_with_cwd(self, argv: list[str], env: dict[str, str] | None = None, hold_after_ssh: bool = False) -> str:
         window = self.window
@@ -228,7 +224,8 @@ class CwdRequest:
                 return ''
             if not window.child_is_remote and (self.request_type is CwdRequestType.last_reported or window.at_prompt):
                 return reported_cwd
-        return window.get_cwd_of_child(oldest=self.request_type is CwdRequestType.oldest) or ''
+        return window.resolved_cwd(
+            oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
 
 
 def process_title_from_child(title: memoryview, is_base64: bool, default_title: str) -> str:
@@ -2395,10 +2392,7 @@ class Window:
 
     @property
     def cwd_for_serialization(self) -> str:
-        cwd = self.get_cwd_of_child(oldest=False) or self.get_cwd_of_child(oldest=True) or self.child.cwd
-        if self.screen.last_reported_cwd and self.at_prompt and not self.child_is_remote:
-            cwd = path_from_osc7_url(self.screen.last_reported_cwd) or cwd
-        return cwd
+        return self.resolved_cwd() or self.get_cwd_of_child(oldest=True) or self.child.cwd
 
     def as_launch_command(self, ser_opts: SaveAsSessionOptions, cwd: str, is_overlay: bool = False) -> list[str]:
         "Return a launch command that can be used to serialize this window. Empty list indicates not serializable."
