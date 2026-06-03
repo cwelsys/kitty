@@ -122,6 +122,7 @@ from .utils import (
     sanitize_url_for_display_to_user,
     shlex_split,
 )
+from .cwd_policy import choose_cwd, is_shell_exe
 
 MatchPatternType = Union[Pattern[str], tuple[Pattern[str], Optional[Pattern[str]]]]
 
@@ -2106,6 +2107,33 @@ class Window:
 
     def get_cwd_of_root_child(self) -> str | None:
         return self.child.current_cwd
+
+    def _foreground_is_nested_shell(self, oldest: bool = False) -> bool:
+        # True when the foreground job is an interactive shell distinct from the
+        # window's own integrated shell (e.g. sudo -s, nix develop). In that case
+        # the integrated shell's OSC-7 cwd is stale and the /proc cwd is better.
+        pid = self.child.get_pid_for_cwd(oldest)
+        if pid is None or pid == self.child.pid:
+            return False
+        exe = self.child.get_foreground_exe(oldest)
+        return bool(exe) and is_shell_exe(exe)
+
+    def resolved_cwd(self, oldest: bool = False, request_type: 'CwdRequestType' = CwdRequestType.current) -> str:
+        reported = path_from_osc7_url(self.screen.last_reported_cwd) if self.screen.last_reported_cwd else ''
+        if request_type is CwdRequestType.last_reported:
+            mode = 'last_reported'
+        elif request_type in (CwdRequestType.oldest, CwdRequestType.root):
+            mode = 'prompt_gated'
+        else:
+            mode = 'current'
+        if request_type is CwdRequestType.root:
+            heuristic = self.get_cwd_of_root_child() or ''
+        else:
+            heuristic = self.get_cwd_of_child(oldest=oldest) or ''
+        nested = self._foreground_is_nested_shell(oldest) if mode == 'current' else False
+        return choose_cwd(
+            reported=reported, child_is_remote=self.child_is_remote, at_prompt=self.at_prompt,
+            foreground_is_nested_shell=nested, heuristic_cwd=heuristic, mode=mode)
 
     def get_exe_of_child(self, oldest: bool = False) -> str:
         return self.child.get_foreground_exe(oldest) or self.child.argv[0]
