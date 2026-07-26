@@ -13,6 +13,26 @@ def display_width(s: str) -> int:
     return w if w >= 0 else len(s)
 
 
+def _ends_with_pua(s: str) -> bool:
+    if not s:
+        return False
+    cp = ord(s[-1])
+    return 0xE000 <= cp <= 0xF8FF or 0xF0000 <= cp <= 0xFFFFD or 0x100000 <= cp <= 0x10FFFD
+
+
+def pad_pua_icon(icon: str) -> str:
+    """Append a space to icons ending in a Private Use Area glyph.
+
+    kitty renders a PUA glyph followed by a space as a single two-cell
+    ligature, centering the glyph over both cells and swallowing the space.
+    The extra space restores a visible gap between the icon and what
+    follows, without shrinking the glyph the way narrow_symbols would.
+    """
+    if _ends_with_pua(icon):
+        return icon + ' '
+    return icon
+
+
 def _take_width(text: str, budget: int) -> str:
     """Longest prefix of text whose display width is <= budget."""
     out = []

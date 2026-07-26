@@ -668,6 +668,9 @@ class TabBar:
             opts.tab_title_max_length, self.os_window_id,
         )
         ts = opts.tab_bar_style
+        # Reset on every apply_options() so a live config reload away from
+        # the zones style actually leaves it.
+        self._zones_draw: Callable[[DrawData, Screen, Sequence[TabBarData]], list[TabExtent]] | None = None
         if ts == 'separator':
             self.draw_func: DrawTabFunc = draw_tab_with_separator
         elif ts == 'powerline':
@@ -679,7 +682,7 @@ class TabBar:
         elif ts == 'zones':
             from .tab_bar_zones import draw_tab_with_zones
             self._zones_draw = draw_tab_with_zones
-            self.draw_func = draw_tab_with_fade  # fallback, unused in zones path
+            self.draw_func = draw_tab_with_fade
         else:
             self.draw_func = draw_tab_with_fade
         self.tab_bar_align = normalized_tab_bar_align(opts.tab_bar_align)
@@ -857,17 +860,21 @@ class TabBar:
         self.last_laid_out_tabs = data
 
         # Zones style: bypass per-tab loop entirely
-        if hasattr(self, '_zones_draw'):
+        if self._zones_draw is not None:
             s.cursor.x = 0
+            # erase_in_line fills with the current cursor bg (BCE), so reset
+            # colors left over from the previous frame's last drawn cell.
+            s.cursor.bg = s.cursor.fg = 0
+            s.cursor.bold = s.cursor.italic = False
             s.erase_in_line(2, False)
             try:
                 self.tab_extents = self._zones_draw(self.draw_data, s, data)
             except Exception as e:
                 log_error(f'Zones tab bar draw failed: {e}')
                 self.tab_extents = []
+            s.cursor.bg = s.cursor.fg = 0
             s.erase_in_line(0, False)
-            update_tab_bar_edge_colors(self.os_window_id)
-            return
+            return self._update_edge_defaults(False)
 
         last_tab = data[-1] if data else None
         ed = ExtraData()

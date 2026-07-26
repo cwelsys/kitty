@@ -5,19 +5,36 @@ from . import BaseTest
 
 class TestTabBarZones(BaseTest):
 
-    def test_separator_mirror_glyphs_intact(self):
-        # Regression: the private-use Powerline glyphs in _SEPARATOR_MIRROR must
-        # survive verbatim. If they get blanked, the mirror lookup misses and the
-        # right (mirrored) zone draws an unflipped, wrong-facing separator.
-        # Escapes (not raw glyphs) so this test can't itself be corrupted.
+    def test_flat_zone_cells(self):
+        # Zones render flat: [icon][' '][parts] on the bar background (bg 0),
+        # mirrored as [parts][' '][icon]. No pill chrome glyphs, parts keep
+        # their own fg colors, the icon is bold in its own color.
         from kitty.tab_bar_zones import draw
-        self.ae(draw._SEPARATOR_MIRROR.get('\ue0b0'), '\ue0b2')  # solid right -> left
-        self.ae(draw._SEPARATOR_MIRROR.get('\ue0b1'), '\ue0b3')  # outline right -> left
-        # a mirrored zone pill uses the flipped separator, not the original
-        zc = draw.ZoneContent(icon='I', parts=(('txt', 1),), icon_fg=1, icon_bg=2, text_bg=3)
-        glyphs = [g for _, _, _, g in draw._zone_pill_cells(zc, '\ue0b6', '\ue0b4', '\ue0b0', mirrored=True)]
-        self.assertIn('\ue0b2', glyphs)
-        self.assertNotIn('\ue0b0', glyphs)
+        zc = draw.ZoneContent(icon='I', parts=(('aa', 7), ('bb', 8)), icon_color=2)
+
+        cells = draw._zone_cells(zc)
+        self.ae([g for _, _, _, g in cells], ['I', ' ', 'aa', 'bb'])
+        self.assertTrue(all(bg == 0 for bg, _, _, _ in cells))
+        self.ae(cells[0][1:3], (2, True))  # icon color, bold
+        self.ae([fg for _, fg, _, _ in cells[2:]], [7, 8])
+
+        mirrored = draw._zone_cells(zc, mirrored=True)
+        self.ae([g for _, _, _, g in mirrored], ['aa', 'bb', ' ', 'I'])
+        self.ae(mirrored[-1][1:3], (2, True))
+
+        # widths match the drawn cells for both layouts
+        self.ae(draw._zone_width(zc), 6)
+        self.ae(draw._zone_width(zc, mirrored=True), 6)
+
+        # empty text parts (always-visible zone) collapse to just the icon
+        empty = draw.ZoneContent(icon='I', parts=(('', 7),), icon_color=2)
+        self.ae([g for _, _, _, g in draw._zone_cells(empty)], ['I'])
+        self.ae([g for _, _, _, g in draw._zone_cells(empty, mirrored=True)], ['I'])
+
+        # empty icon reserves no cell and no gap: parts only, exact width
+        no_icon = draw.ZoneContent(icon='', parts=(('title', 7),), icon_color=2)
+        self.ae([g for _, _, _, g in draw._zone_cells(no_icon, mirrored=True)], ['title'])
+        self.ae(draw._zone_width(no_icon, mirrored=True), 5)
 
     def test_config_reads_options(self):
         from kitty.tab_bar_zones.config import get_config, clear_caches
@@ -171,6 +188,69 @@ class TestTabBarZones(BaseTest):
         out = abbreviate_path(long, 20, home, '…')
         self.assertLessEqual(len(out), 20)
         self.assertTrue(out.endswith('target'))
+
+    def test_icon_exe_candidates(self):
+        from kitty.tab_bar_zones import content
+        def P(pid, *cmd):
+            return {'pid': pid, 'cmdline': list(cmd)}
+        # the group leader (pid == pgrp) wins; transient children (git
+        # spawned by lazygit) must not flicker the icon
+        self.ae(
+            content._icon_exe_candidates(
+                [P(200, 'lazygit'), P(300, 'git', 'status')], 200, None),
+            ['lazygit'])
+        # pid wraparound: children with *lower* pids than the leader
+        # (observed live: gh pid 2951 vs claude pid 94728) must not win
+        self.ae(
+            content._icon_exe_candidates(
+                [P(2951, 'gh', 'pr', 'view'), P(94728, 'claude', '--resume')], 94728, None),
+            ['claude'])
+        # interpreters unwrap to their script; PROC (typed word) comes last
+        self.ae(
+            content._icon_exe_candidates(
+                [P(10, 'node', '/x/y/claude'), P(20, 'caffeinate')], 10, 'cc'),
+            ['claude', 'node', 'cc'])
+        # interpreter flags are skipped when finding the script
+        self.ae(
+            content._icon_exe_candidates([P(1, 'python3', '-u', '/x/tool.py')], 1, None),
+            ['tool.py', 'python3'])
+        # shell leader with a non-shell member (wrapper script case)
+        self.ae(
+            content._icon_exe_candidates(
+                [P(100, '/bin/zsh'), P(200, 'vim')], 100, None),
+            ['vim'])
+        # all shells -> the shell itself (login dash stripped)
+        self.ae(content._icon_exe_candidates([P(5, '-zsh')], 5, None), ['zsh'])
+        # unreadable cmdline and dead pid: skipped; PROC still usable
+        self.ae(content._icon_exe_candidates([{'pid': None, 'cmdline': None}], -1, 'lg'), ['lg'])
+        self.ae(content._icon_exe_candidates([], -1, None), [])
+
+    def test_pick_exe_for_icon(self):
+        from kitty.tab_bar_zones import content
+        from kitty.tab_bar_zones.config import clear_caches
+        clear_caches()
+        self.set_options({})
+        # first candidate with a real icon mapping wins
+        self.ae(content._pick_exe_for_icon(['unknown-xyz', 'node']), 'node')
+        # no mapped candidate: first candidate (renders the fallback icon)
+        self.ae(content._pick_exe_for_icon(['unknown-xyz', 'also-unknown']), 'unknown-xyz')
+        # user overrides count as mappings
+        clear_caches()
+        self.set_options({'tab_bar_icon': {'myalias': 'Z'}})
+        self.ae(content._pick_exe_for_icon(['myalias', 'node']), 'myalias')
+        clear_caches()
+
+    def test_pad_pua_icon(self):
+        # PUA glyphs followed by a space render as a 2-cell ligature that
+        # swallows the space; pad_pua_icon adds one back so a visible gap
+        # survives. Non-PUA text must pass through untouched.
+        from kitty.tab_bar_zones.text import pad_pua_icon
+        self.ae(pad_pua_icon(''), ' ')        # BMP PUA (nerd font)
+        self.ae(pad_pua_icon('\U000f011b'), '\U000f011b ')  # SPUA-A (nerd font)
+        self.ae(pad_pua_icon('1 '), '1  ')    # pads composed strings too
+        self.ae(pad_pua_icon('LEADER'), 'LEADER')         # plain text untouched
+        self.ae(pad_pua_icon('\U0001f980'), '\U0001f980')  # emoji is not PUA
+        self.ae(pad_pua_icon(''), '')
 
     def test_truncate_text_respects_display_width(self):
         # Wide chars are 2 cells; slicing by codepoint overflows the cell budget.

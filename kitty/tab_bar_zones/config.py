@@ -190,7 +190,6 @@ class ZonesConfig(NamedTuple):
     ellipsis: str
     pill_border_left: str
     pill_border_right: str
-    pill_separator: str
     pill_spacing: int
     icon_elements: tuple[str, ...]
     left_icon: str
@@ -206,6 +205,9 @@ class ZonesConfig(NamedTuple):
         if exe in self.icon_overrides:
             return self.icon_overrides[exe]
         return DEFAULT_ICONS.get(exe, self.icon_fallback)
+
+    def has_icon(self, exe: str) -> bool:
+        return exe in self.icon_overrides or exe in DEFAULT_ICONS
 
 
 _cache: 'tuple[int, ZonesConfig] | None' = None
@@ -228,7 +230,6 @@ def get_config() -> ZonesConfig:
         ellipsis=opts.tab_bar_ellipsis,
         pill_border_left=opts.tab_bar_pill_border_left,
         pill_border_right=opts.tab_bar_pill_border_right,
-        pill_separator=opts.tab_bar_pill_separator,
         pill_spacing=opts.tab_bar_pill_spacing,
         icon_elements=opts.tab_bar_icon_elements,
         left_icon=opts.tab_bar_left_icon,
