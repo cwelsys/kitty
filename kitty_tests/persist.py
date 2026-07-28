@@ -54,6 +54,11 @@ class Persist(BaseTest):
     def test_reap_command(self):
         from kitty.persist import reap_command
         self.assertEqual(reap_command('kmux-a3f9'), ['zmx', 'kill', 'kmux-a3f9'])
+        # callers must pass the absolute path: kitty's PATH under LaunchServices
+        # does not contain the directory zmx is usually installed in
+        self.assertEqual(
+            reap_command('kmux-a3f9', '/opt/homebrew/bin/zmx'),
+            ['/opt/homebrew/bin/zmx', 'kill', 'kmux-a3f9'])
 
     def test_reap_command_rejects_empty(self):
         from kitty.persist import reap_command

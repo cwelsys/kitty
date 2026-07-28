@@ -55,8 +55,15 @@ def zmx_command(session_name: str, cmd: Sequence[str] | None) -> list[str]:
     return ans
 
 
-def reap_command(session_name: str) -> list[str]:
-    ' The command that kills a zmx session, or [] if there is nothing to kill '
+def reap_command(session_name: str, zmx_exe: str = 'zmx') -> list[str]:
+    '''
+    The command that kills a zmx session, or [] if there is nothing to kill.
+
+    zmx_exe must be an absolute path resolved by kitty's which(). Under
+    LaunchServices kitty's own PATH is only /usr/bin:/bin:/usr/sbin:/sbin, so a
+    bare 'zmx' fails to exec even on machines where which() finds it via
+    /etc/paths or the login shell.
+    '''
     if not session_name:
         return []
-    return ['zmx', 'kill', session_name]
+    return [zmx_exe, 'kill', session_name]

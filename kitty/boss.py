@@ -1104,7 +1104,11 @@ class Boss:
         from .persist import reap_command, should_reap
         if not should_reap(window.user_vars):
             return
-        cmd = reap_command(window.user_vars.get('zmx_session', ''))
+        exe = which('zmx')
+        if not exe:
+            log_error('kitty: cannot reap zmx session, zmx not found')
+            return
+        cmd = reap_command(window.user_vars.get('zmx_session', ''), exe)
         if not cmd:
             return
         import subprocess
