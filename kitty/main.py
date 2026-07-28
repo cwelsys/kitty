@@ -531,6 +531,8 @@ def set_locale() -> None:
 
 def kitty_main(called_from_panel: bool = False) -> None:
     running_in_kitty(True)
+    from .persist import drop_inherited_session
+    drop_inherited_session(os.environ)
 
     args = sys.argv[1:]
     try:

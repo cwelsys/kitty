@@ -32,6 +32,18 @@ class Persist(BaseTest):
         self.assertNotEqual(a, b)
         self.assertTrue(a.startswith('proj-'))
 
+    def test_drop_inherited_session(self):
+        from kitty.persist import drop_inherited_session
+        # a kitty launched from inside a zmx session must not pass the var on,
+        # or zmx attach switches the launching terminal instead of creating
+        env = {'ZMX_SESSION': 'cwel-7f46', 'ZMX_SESSION_PREFIX': 'ws.', 'PATH': '/bin'}
+        drop_inherited_session(env)
+        self.assertEqual(env, {'ZMX_SESSION_PREFIX': 'ws.', 'PATH': '/bin'})
+        # absent is not an error
+        env = {'PATH': '/bin'}
+        drop_inherited_session(env)
+        self.assertEqual(env, {'PATH': '/bin'})
+
     def test_should_reap(self):
         from kitty.persist import should_reap
         # kitty created this session, so kitty owns its lifetime

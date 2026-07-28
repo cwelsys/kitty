@@ -4,7 +4,7 @@
 import os
 import re
 import secrets
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 
 MAX_SLUG_LEN = 24
 FALLBACK_SLUG = 'shell'
@@ -32,6 +32,22 @@ def make_session_name(cwd: str, rand: Callable[[], str] | None = None) -> str:
     '''
     suffix = rand() if rand is not None else secrets.token_hex(2)
     return f'{slugify(cwd)}-{suffix}'
+
+
+def drop_inherited_session(env: MutableMapping[str, str]) -> None:
+    '''
+    Remove ZMX_SESSION from kitty's own environment at startup.
+
+    zmx's attach() switches the *calling* terminal to another session when
+    ZMX_SESSION is set, instead of creating one (src/main.zig: attach ->
+    switchSesh). A kitty started from inside a zmx session would inherit the
+    variable, and its first window would hand its session to the terminal that
+    launched kitty, leaving kitty running with no windows at all. kitty is never
+    itself a zmx session, so the inherited value is wrong for every child it
+    spawns. ZMX_SESSION_PREFIX is deliberately left alone: it scopes names rather
+    than redirecting attach.
+    '''
+    env.pop('ZMX_SESSION', None)
 
 
 def should_reap(user_vars: Mapping[str, str]) -> bool:
