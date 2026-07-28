@@ -1,9 +1,11 @@
 # License: GPL v3 Copyright: 2018, Kovid Goyal <kovid at kovidgoyal.net>
 from __future__ import annotations
 from typing import NamedTuple
+from kitty.constants import is_macos
 from kitty.fast_data_types import get_options
 
-# Generated from tabbar.toml [icons.mapping] -- do not hand-edit glyphs.
+_PKG_ALIAS_ICON = '\U000f0098' if is_macos else '\U000f0baf'
+
 DEFAULT_ICONS: dict[str, str] = {
     'Python': '\ue73c',
     'R': '\U000f07d4',
@@ -113,8 +115,8 @@ DEFAULT_ICONS: dict[str, str] = {
     'nvim': '\ue6ae',
     'openssl': '\uf023',
     'pacman': '\U000f0baf',
-    'pi': '\U000f0baf',
-    'pu': '\U000f0baf',
+    'pi': _PKG_ALIAS_ICON,
+    'pu': _PKG_ALIAS_ICON,
     'parted': '\uf0a0',
     'paru': '\U000f0baf',
     'perl': '\ue769',
@@ -249,6 +251,8 @@ def clear_caches() -> None:
     global _cache
     _cache = None
     from . import gitstatus
+
     gitstatus.clear_caches()
     from . import content
+
     content.clear_caches()
