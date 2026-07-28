@@ -150,6 +150,10 @@ enabled. Overrides :option:`--persist <launch --persist>` if both are given.
 Attach to this specific zmx session name instead of generating one. Implies
 :option:`--persist <launch --persist>`. Sessions named this way are considered
 user-owned and are never automatically killed when their window closes.
+Note that a session's environment is fixed when it is first created, so a
+session re-attached from a later kitty instance still has the original
+:envvar:`KITTY_WINDOW_ID`, :envvar:`KITTY_PID` and :envvar:`KITTY_LISTEN_ON`;
+:program:`kitten @` run inside it will address the kitty that created it.
 
 
 --cwd
@@ -644,6 +648,10 @@ class ForceWindowLaunch:
 
 force_window_launch = ForceWindowLaunch()
 non_window_launch_types = 'background', 'clipboard', 'primary'
+# Overlays are transient UI over another window -- pagers, editors, confirmations.
+# An explicit --persist still applies to them, but persist_windows must not sweep
+# them up: a scrollback pager has no business outliving kitty.
+auto_persist_excluded_types = non_window_launch_types + ('overlay', 'overlay-main')
 
 
 def parse_remote_control_passwords(allow_remote_control: bool, passwords: Sequence[str]) -> dict[str, Sequence[str]] | None:
@@ -798,8 +806,14 @@ def _launch(
         kw['cmd'] = final_cmd
     persist_session_name = ''
     persist_owned = False
-    want_persist = bool(opts.persist or opts.persist_name) or (
-        get_options().persist_windows and opts.type not in non_window_launch_types)
+    explicit_persist = bool(opts.persist or opts.persist_name)
+    if explicit_persist and opts.type in non_window_launch_types:
+        # No window is created, so there is nowhere to record zmx_session and the
+        # session could never be reaped. Refuse rather than leak one per launch.
+        log_error(f'kitty: ignoring --persist for --type={opts.type}, which creates no window')
+        explicit_persist = False
+    want_persist = explicit_persist or (
+        get_options().persist_windows and opts.type not in auto_persist_excluded_types)
     if want_persist and not opts.no_persist:
         from .persist import make_session_name, zmx_command
         if which('zmx'):
