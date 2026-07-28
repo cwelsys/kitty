@@ -1923,6 +1923,21 @@ you can map the :ac:`close_window_with_confirmation` action.
 )
 
 opt(
+    'persist_windows',
+    'no',
+    option_type='to_bool',
+    long_text="""
+If enabled, every new :term:`kitty window <window>` runs its program under a
+:code:`zmx` session, so the program survives kitty exiting or crashing. Requires
+:code:`zmx` on PATH; if it is missing, windows launch normally and a warning is
+logged. Individual launches can opt out with :option:`launch --no-persist`.
+Sessions created this way are killed when their window is deliberately closed;
+see :opt:`confirm_os_window_close` for the confirmation prompt that guards
+against closing windows with running programs.
+""",
+)
+
+opt(
     'window_drag_tolerance',
     '2',
     option_type='float',

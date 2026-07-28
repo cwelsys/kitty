@@ -798,7 +798,9 @@ def _launch(
         kw['cmd'] = final_cmd
     persist_session_name = ''
     persist_owned = False
-    if (opts.persist or opts.persist_name) and not opts.no_persist:
+    want_persist = bool(opts.persist or opts.persist_name) or (
+        get_options().persist_windows and opts.type not in non_window_launch_types)
+    if want_persist and not opts.no_persist:
         from .persist import make_session_name, zmx_command
         if which('zmx'):
             if opts.persist_name:

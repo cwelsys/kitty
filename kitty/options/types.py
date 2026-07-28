@@ -421,6 +421,7 @@ option_names = (
     'pixel_scroll',
     'placement_strategy',
     'pointer_shape_when_dragging',
+    'persist_windows',
     'pointer_shape_when_grabbed',
     'progress_bar',
     'remember_window_position',
@@ -663,6 +664,7 @@ class Options:
     pointer_shape_when_dragging: tuple[str, str] = ('beam', 'crosshair')
     pointer_shape_when_grabbed: choices_for_pointer_shape_when_grabbed = 'arrow'
     progress_bar: choices_for_progress_bar = 'top'
+    persist_windows: bool = False
     remember_window_position: bool = False
     remember_window_size: bool = True
     repaint_delay: int = 10

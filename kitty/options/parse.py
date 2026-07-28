@@ -1234,6 +1234,9 @@ class Parser:
     def remember_window_position(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['remember_window_position'] = to_bool(val)
 
+    def persist_windows(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['persist_windows'] = to_bool(val)
+
     def remember_window_size(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['remember_window_size'] = to_bool(val)
 
