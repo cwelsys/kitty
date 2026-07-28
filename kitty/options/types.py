@@ -418,6 +418,7 @@ option_names = (
     'open_url_with',
     'palette_generate',
     'paste_actions',
+    'persist_windows',
     'pixel_scroll',
     'placement_strategy',
     'pointer_shape_when_dragging',
@@ -658,6 +659,7 @@ class Options:
     open_url_with: list[str] = ['default']
     palette_generate: choices_for_palette_generate = 'fixed'
     paste_actions: frozenset[str] = frozenset({'confirm', 'quote-urls-at-prompt'})
+    persist_windows: bool = False
     pixel_scroll: bool = True
     placement_strategy: choices_for_placement_strategy = 'center'
     pointer_shape_when_dragging: tuple[str, str] = ('beam', 'crosshair')

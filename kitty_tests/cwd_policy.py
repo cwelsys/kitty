@@ -106,6 +106,9 @@ class CwdPolicy(BaseTest):
         defaults.update(kw)
         child = SimpleNamespace(
             pid=defaults['root_pid'],
+            # the window's own root process, which for a persisted window is the
+            # process inside the session rather than the wrapper kitty forked
+            effective_pid=defaults['root_pid'],
             get_pid_for_cwd=lambda oldest=False: defaults['fg_pid'],
             get_foreground_exe=lambda oldest=False: defaults['fg_exe'],
         )

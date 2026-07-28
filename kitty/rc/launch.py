@@ -60,6 +60,9 @@ class Launch(RemoteCommand):
     bias/float: The bias with which to create the new window in the current layout
     wait_for_child_to_exit/bool: Boolean indicating whether to wait and return child exit code
     hold_after_ssh/bool: Boolean indicating whether to run a local shell after exiting the ssh session cloned via cwd=current or similar
+    persist/bool: Boolean indicating whether to run the child under a zmx session so it survives kitty
+    no_persist/bool: Boolean indicating whether to skip zmx even when persist_windows is enabled
+    persist_name/str: Specific zmx session name to attach to, or empty string to generate one
     '''
 
     short_desc = 'Run an arbitrary process in a new window/tab'

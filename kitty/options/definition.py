@@ -1923,6 +1923,27 @@ you can map the :ac:`close_window_with_confirmation` action.
 )
 
 opt(
+    'persist_windows',
+    'no',
+    option_type='to_bool',
+    long_text="""
+If enabled, every new :term:`kitty window <window>` runs its program under a
+:code:`zmx` session, so the program survives kitty exiting or crashing. Requires
+:code:`zmx` on PATH; if it is missing, windows launch normally and a warning is
+logged. Individual launches can opt out with :option:`launch --no-persist`.
+Overlay windows (scrollback pagers, editors and similar transient UI) are never
+persisted automatically, but still honour an explicit :option:`launch --persist`.
+Note that kitty can only see the :code:`zmx` client process, not the shell behind
+it, so process-based features degrade: backgrounded jobs no longer count towards
+:opt:`confirm_os_window_close` and :option:`launch --cwd` values of
+:code:`oldest` and :code:`root` fall back to the directory the window started in.
+Sessions created this way are killed when their window is deliberately closed;
+see :opt:`confirm_os_window_close` for the confirmation prompt that guards
+against closing windows with running programs.
+""",
+)
+
+opt(
     'window_drag_tolerance',
     '2',
     option_type='float',

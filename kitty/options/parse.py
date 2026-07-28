@@ -1201,6 +1201,9 @@ class Parser:
     def paste_actions(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['paste_actions'] = paste_actions(val)
 
+    def persist_windows(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['persist_windows'] = to_bool(val)
+
     def pixel_scroll(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['pixel_scroll'] = to_bool(val)
 

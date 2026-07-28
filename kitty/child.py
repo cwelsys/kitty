@@ -27,6 +27,7 @@ if is_macos:
     from kitty.fast_data_types import cwd_of_process as _cwd
     from kitty.fast_data_types import environ_of_process as _environ_of_process
     from kitty.fast_data_types import process_group_map as _process_group_map
+    from kitty.fast_data_types import tty_foreground_process_group
 
     def cwd_of_process(pid: int) -> str:
         # The underlying code on macos returns a path with symlinks resolved
@@ -93,6 +94,15 @@ else:
 
     def abspath_of_exe(pid: int) -> str:
         return os.path.realpath(f'/proc/{pid}/exe', strict=True)
+
+    def tty_foreground_process_group(pid: int) -> int:
+        # Field 8 of /proc/pid/stat is tpgid, the foreground process group of
+        # this process's controlling terminal -- tcgetpgrp() for a terminal we
+        # hold no descriptor for. comm (field 2) is unquoted and may contain
+        # both spaces and parens, so fields are counted from the last ')'.
+        with open(f'/proc/{pid}/stat', 'rb') as f:
+            raw = f.read().decode('utf-8', 'replace')
+        return int(raw.rpartition(')')[2].split()[5])
 
 
 @run_once
@@ -259,7 +269,10 @@ class Child:
         remote_control_fd: int = -1,
         hold_after_ssh: bool = False,
         startup_command_via_shell_integration: Sequence[str] | str = (),
+        persist_session: str = '',
     ):
+        self.persist_session = persist_session
+        self._persist_root_pid: int | None = None
         self.is_clone_launch = is_clone_launch
         self.id = next(child_counter)
         self.add_listen_on_env_var = add_listen_on_env_var
@@ -474,12 +487,62 @@ class Child:
             ans['cwd'] = cwd_of_process(pid) or None
         return ans
 
+    def resolve_persist_root_pid(self) -> int:
+        from .persist import parse_session_pid, session_pid_command
+        exe = which('zmx')
+        if not exe:
+            return 0
+        try:
+            import subprocess
+            cp = subprocess.run(
+                session_pid_command(self.persist_session, exe), capture_output=True,
+                timeout=2, encoding='utf-8', errors='replace')
+        except Exception as err:
+            log_error(f'kitty: could not resolve zmx session {self.persist_session}: {err}')
+            return 0
+        return parse_session_pid(cp.stdout, self.persist_session)
+
+    @property
+    def persist_root_pid(self) -> int:
+        '''
+        Pid of the process the persistence wrapper started for this window, else 0.
+
+        Stable for the session's lifetime -- the session ends when this process
+        exits -- so it is resolved once. Failure is cached as 0 too: this is on
+        the tab bar's redraw path and must never fork zmx repeatedly.
+        '''
+        if not self.persist_session:
+            return 0
+        if self._persist_root_pid is None:
+            self._persist_root_pid = self.resolve_persist_root_pid()
+        return self._persist_root_pid
+
+    @property
+    def effective_pgrp(self) -> int:
+        '''
+        Foreground process group of the terminal the real program runs on.
+
+        For a persisted window that terminal is not the one kitty created: the
+        wrapper's client sits on kitty's pty while the program runs on a pty
+        owned by the wrapper's daemon. The kernel still tracks that pty's
+        foreground group, so it can be read without holding a descriptor for it.
+        '''
+        with suppress(Exception):
+            if pid := self.persist_root_pid:
+                return tty_foreground_process_group(pid)
+            if self.child_fd is not None:
+                return os.tcgetpgrp(self.child_fd)
+        return -1
+
+    @property
+    def effective_pid(self) -> int | None:
+        ' The process to read cwd/environ from: the real program, not the wrapper client '
+        return self.persist_root_pid or self.pid
+
     @property
     def foreground_processes(self) -> list[ProcessDesc]:
-        if self.child_fd is None:
-            return []
         try:
-            pgrp = os.tcgetpgrp(self.child_fd)
+            pgrp = self.effective_pgrp
             foreground_processes = processes_in_group(pgrp) if pgrp >= 0 else []
             return [self.process_desc(x) for x in foreground_processes]
         except Exception:
@@ -487,10 +550,8 @@ class Child:
 
     @property
     def background_processes(self) -> list[ProcessDesc]:
-        if self.child_fd is None:
-            return []
         try:
-            foreground_process_group_id = os.tcgetpgrp(self.child_fd)
+            foreground_process_group_id = self.effective_pgrp
             if foreground_process_group_id < 0:
                 return []
             gmap = process_group_map()
@@ -509,8 +570,9 @@ class Child:
     @property
     def cmdline(self) -> list[str]:
         try:
-            assert self.pid is not None
-            return self.cmdline_of_pid(self.pid) or list(self.argv)
+            pid = self.effective_pid
+            assert pid is not None
+            return self.cmdline_of_pid(pid) or list(self.argv)
         except Exception:
             return list(self.argv)
 
@@ -525,22 +587,23 @@ class Child:
     @property
     def environ(self) -> dict[str, str]:
         try:
-            assert self.pid is not None
-            return environ_of_process(self.pid) or self.final_env.copy()
+            pid = self.effective_pid
+            assert pid is not None
+            return environ_of_process(pid) or self.final_env.copy()
         except Exception:
             return self.final_env.copy()
 
     @property
     def current_cwd(self) -> str | None:
         with suppress(Exception):
-            assert self.pid is not None
-            return cwd_of_process(self.pid)
+            pid = self.effective_pid
+            assert pid is not None
+            return cwd_of_process(pid)
         return None
 
     def get_pid_for_cwd(self, oldest: bool = False) -> int | None:
         with suppress(Exception):
-            assert self.child_fd is not None
-            pgrp = os.tcgetpgrp(self.child_fd)
+            pgrp = self.effective_pgrp
             foreground_processes = processes_in_group(pgrp) if pgrp >= 0 else []
             if foreground_processes:
                 # there is no easy way that I know of to know which process is the
@@ -554,7 +617,7 @@ class Child:
                 # With this script , the foreground process group will contain
                 # both the bash instance running the script and vim.
                 return min(foreground_processes) if oldest else max(foreground_processes)
-        return self.pid
+        return self.effective_pid
 
     @property
     def pid_for_cwd(self) -> int | None:
@@ -586,7 +649,7 @@ class Child:
         if pid is not None:
             with suppress(Exception):
                 return environ_of_process(pid)
-        pid = self.pid
+        pid = self.effective_pid
         if pid is not None:
             with suppress(Exception):
                 return environ_of_process(pid)

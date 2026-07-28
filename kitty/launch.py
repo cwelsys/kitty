@@ -132,6 +132,30 @@ Keep the focus on the currently active window instead of switching to the newly
 opened window.
 
 
+--persist
+type=bool-set
+Run the child process under a :code:`zmx` session so it survives kitty exiting or
+crashing. Requires :code:`zmx` on PATH; if it is missing the program is launched
+directly and a warning is logged. The session name is recorded on the window as
+the :code:`zmx_session` user variable.
+
+
+--no-persist
+type=bool-set
+Do not run the child process under zmx, even when :opt:`persist_windows` is
+enabled. Overrides :option:`--persist <launch --persist>` if both are given.
+
+
+--persist-name
+Attach to this specific zmx session name instead of generating one. Implies
+:option:`--persist <launch --persist>`. Sessions named this way are considered
+user-owned and are never automatically killed when their window closes.
+Note that a session's environment is fixed when it is first created, so a
+session re-attached from a later kitty instance still has the original
+:envvar:`KITTY_WINDOW_ID`, :envvar:`KITTY_PID` and :envvar:`KITTY_LISTEN_ON`;
+:program:`kitten @` run inside it will address the kitty that created it.
+
+
 --cwd
 completion=type:directory kwds:current,oldest,last_reported,root
 The working directory for the newly launched child. Use the special value
@@ -624,6 +648,10 @@ class ForceWindowLaunch:
 
 force_window_launch = ForceWindowLaunch()
 non_window_launch_types = 'background', 'clipboard', 'primary'
+# Overlays are transient UI over another window -- pagers, editors, confirmations.
+# An explicit --persist still applies to them, but persist_windows must not sweep
+# them up: a scrollback pager has no business outliving kitty.
+auto_persist_excluded_types = non_window_launch_types + ('overlay', 'overlay-main')
 
 
 def parse_remote_control_passwords(allow_remote_control: bool, passwords: Sequence[str]) -> dict[str, Sequence[str]] | None:
@@ -776,6 +804,28 @@ def _launch(
             if exe:
                 final_cmd[0] = exe
         kw['cmd'] = final_cmd
+    persist_session_name = ''
+    persist_owned = False
+    explicit_persist = bool(opts.persist or opts.persist_name)
+    if explicit_persist and opts.type in non_window_launch_types:
+        # No window is created, so there is nowhere to record zmx_session and the
+        # session could never be reaped. Refuse rather than leak one per launch.
+        log_error(f'kitty: ignoring --persist for --type={opts.type}, which creates no window')
+        explicit_persist = False
+    want_persist = explicit_persist or (
+        get_options().persist_windows and opts.type not in auto_persist_excluded_types)
+    if want_persist and not opts.no_persist:
+        from .persist import make_session_name, zmx_command
+        if which('zmx'):
+            if opts.persist_name:
+                persist_session_name = opts.persist_name
+            else:
+                cwd_for_name = kw['cwd'] or (source_child.foreground_cwd if source_child else '') or ''
+                persist_session_name = make_session_name(cwd_for_name)
+                persist_owned = True
+            kw['cmd'] = zmx_command(persist_session_name, kw['cmd'])
+        else:
+            log_error('kitty: --persist requested but zmx not found on PATH; launching directly')
     if force_window_launch and opts.type not in non_window_launch_types:
         opts.type = 'window'
     if next_to and opts.type in non_window_launch_types:
@@ -824,7 +874,8 @@ def _launch(
         with Window.set_ignore_focus_changes_for_new_windows(opts.keep_focus):
             new_window: Window = tab.new_window(
                 env=env or None, watchers=watchers or None, is_clone_launch=is_clone_launch, next_to=next_to,
-                startup_command_via_shell_integration=startup_command_via_shell_integration, **kw)
+                startup_command_via_shell_integration=startup_command_via_shell_integration,
+                persist_session=persist_session_name, **kw)
             new_window.created_in_session_name = add_to_session
             if child_death_callback is not None:
                 boss.monitor_pid(new_window.child.pid or 0, child_death_callback)
@@ -855,6 +906,9 @@ def _launch(
                 new_window.creation_spec = new_window.creation_spec._replace(user_vars=vars)
             for key, val in vars:
                 new_window.set_user_var(key, val)
+        if persist_session_name:
+            new_window.set_user_var('zmx_session', persist_session_name)
+            new_window.set_user_var('zmx_owned', '1' if persist_owned else '0')
         return new_window
     return None
 

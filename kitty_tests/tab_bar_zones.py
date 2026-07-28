@@ -225,6 +225,45 @@ class TestTabBarZones(BaseTest):
         self.ae(content._icon_exe_candidates([{'pid': None, 'cmdline': None}], -1, 'lg'), ['lg'])
         self.ae(content._icon_exe_candidates([], -1, None), [])
 
+    def test_icon_exe_candidates_session_wrapper(self):
+        from kitty.tab_bar_zones import content
+        def P(pid, *cmd):
+            return {'pid': pid, 'cmdline': list(cmd)}
+        # Windows kitty persisted itself never reach here -- Child resolves the
+        # session pid and reports the real process group. This is the fallback
+        # for a wrapper kitty did not start (a hand-run `zmx attach`), where the
+        # client argv is the only thing left to read.
+        self.ae(
+            content._icon_exe_candidates(
+                [P(10, 'zmx', 'attach', 'kitty-a3f9', '/bin/zsh')], 10, None),
+            ['zsh'])
+        # PROC is the only view of what the invisible shell is running, so here
+        # it outranks the wrapped argv rather than trailing it
+        self.ae(
+            content._icon_exe_candidates(
+                [P(10, 'zmx', 'attach', 'kitty-a3f9', '/bin/zsh')], 10, 'nvim'),
+            ['nvim', 'zsh'])
+        # a wrapped explicit command names itself
+        self.ae(
+            content._icon_exe_candidates(
+                [P(10, 'zmx', 'attach', 'work', 'nvim', 'foo.txt')], 10, None),
+            ['nvim'])
+        # login-shell dash is stripped like anywhere else
+        self.ae(
+            content._icon_exe_candidates(
+                [P(10, '/usr/bin/zmx', 'attach', 'work', '-zsh')], 10, None),
+            ['zsh'])
+        # bare `zmx attach <name>`: launch() leaves shell resolution to the child,
+        # so nothing is there to unwrap and zmx spawns a login shell of its own
+        sh = content._default_shell_name()
+        self.assertTrue(sh)
+        self.ae(content._icon_exe_candidates([P(10, 'zmx', 'attach', 'work')], 10, 'lg'), ['lg', sh])
+        self.ae(content._icon_exe_candidates([P(10, 'zmx', 'attach', 'work')], 10, None), [sh])
+        # an unrelated binary that merely starts with zmx is not a wrapper
+        self.ae(
+            content._icon_exe_candidates([P(10, 'zmxctl', 'attach', 'x', 'y')], 10, None),
+            ['zmxctl'])
+
     def test_pick_exe_for_icon(self):
         from kitty.tab_bar_zones import content
         from kitty.tab_bar_zones.config import clear_caches

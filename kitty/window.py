@@ -2110,7 +2110,7 @@ class Window:
         # window's own integrated shell (e.g. sudo -s, nix develop). In that case
         # the integrated shell's OSC-7 cwd is stale and the /proc cwd is better.
         pid = self.child.get_pid_for_cwd(oldest)
-        if pid is None or pid == self.child.pid:
+        if pid is None or pid == self.child.effective_pid:
             return False
         exe = self.child.get_foreground_exe(oldest)
         return bool(exe) and is_shell_exe(exe)
@@ -2141,7 +2141,7 @@ class Window:
 
     @property
     def root_in_foreground_processes(self) -> bool:
-        q = self.child.pid
+        q = self.child.effective_pid
         for p in self.child.foreground_processes:
             if p['pid'] == q:
                 return True
@@ -2480,7 +2480,7 @@ class Window:
             elif not self.at_prompt:
                 if self.last_cmd_cmdline:
                     unserialize_data['cmd_at_shell_startup'] = self.last_cmd_cmdline
-                elif self.child.pid != (pid := self.child.pid_for_cwd) and pid is not None:
+                elif self.child.effective_pid != (pid := self.child.pid_for_cwd) and pid is not None:
                     # we have a shell running some command
                     with suppress(Exception):
                         fcmd = self.child.cmdline_of_pid(pid)
