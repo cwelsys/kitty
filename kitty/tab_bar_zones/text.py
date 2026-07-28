@@ -34,15 +34,26 @@ def pad_pua_icon(icon: str) -> str:
 
 
 def _take_width(text: str, budget: int) -> str:
-    """Longest prefix of text whose display width is <= budget."""
+    """Longest prefix of text whose display width is <= budget.
+
+    A PUA glyph and the space pad_pua_icon put after it are one two-cell
+    ligature, so they are taken or dropped together. Keeping the glyph alone
+    would leave the font drawing a two-cell glyph into a single cell, which
+    shows up as an icon sliced down the middle.
+    """
     out = []
     w = 0
-    for ch in text:
-        cw = display_width(ch)
+    i = 0
+    while i < len(text):
+        chunk = text[i]
+        if _ends_with_pua(chunk) and text[i + 1:i + 2] == ' ':
+            chunk = text[i:i + 2]
+        cw = display_width(chunk)
         if w + cw > budget:
             break
-        out.append(ch)
+        out.append(chunk)
         w += cw
+        i += len(chunk)
     return "".join(out)
 
 

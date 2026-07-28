@@ -302,6 +302,21 @@ class TestTabBarZones(BaseTest):
         # pure-ascii behaviour unchanged
         self.ae(truncate_text('abcdef', 4, '…'), 'abc…')
 
+    def test_truncate_text_keeps_pua_icon_whole(self):
+        # A PUA glyph and the space pad_pua_icon appends are one two-cell
+        # ligature. Emitting the glyph without its space leaves the font drawing
+        # a two-cell glyph into one cell, which renders as a sliced icon, so the
+        # pair has to be dropped together.
+        from kitty.tab_bar_zones.text import display_width, pad_pua_icon, truncate_text
+        icon = pad_pua_icon('')
+        self.ae(display_width(icon), 2)
+        text = icon + 'nvim'
+        for budget in range(1, display_width(text) + 2):
+            out = truncate_text(text, budget, '…')
+            self.assertLessEqual(display_width(out), budget, f'overflowed at budget={budget}')
+            if '' in out:
+                self.assertIn(icon, out, f'icon split from its space at budget={budget}')
+
     def test_abbreviate_path_respects_display_width(self):
         from kitty.tab_bar_zones.text import abbreviate_path, display_width
         # last component itself wider than budget -> hits the final hard truncate
