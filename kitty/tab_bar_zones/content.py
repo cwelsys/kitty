@@ -11,6 +11,7 @@ Ported from the config-side tab_bar.py. Provides:
 """
 from __future__ import annotations
 import os
+from functools import lru_cache
 from typing import Callable, NamedTuple
 
 from ..fast_data_types import get_boss, get_options
@@ -102,8 +103,9 @@ def resolve_title(tab: TabBarData, sticky: bool) -> str:
 
 
 def clear_caches() -> None:
-    """Clear the sticky-title cache."""
+    """Clear the sticky-title cache and the resolved login-shell name."""
     _last_titles.clear()
+    _default_shell_name.cache_clear()
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +118,37 @@ _INTERPRETERS = {
     'python', 'python2', 'python3',
     'ruby', 'perl', 'lua', 'luajit',
 }
+
+
+# Session-persistence wrappers that run their child under a detached daemon on
+# another pty. kitty's pty child is only the wrapper's client process, so the
+# whole process tree behind it is invisible to foreground_processes.
+_SESSION_WRAPPERS = {'zmx'}
+
+
+def _unwrap_session_cmdline(name: str, cmdline: list[str]) -> list[str] | None:
+    """The argv the wrapper was asked to run, or None if this is not a wrapper.
+
+    `zmx attach <session> [command...]` -- an empty list means no command was
+    given, which is distinct from "not a wrapper" and so is not None.
+    """
+    if name not in _SESSION_WRAPPERS or len(cmdline) < 3:
+        return None
+    return cmdline[3:]
+
+
+@lru_cache(maxsize=1)
+def _default_shell_name() -> str:
+    """Basename of the login shell a bare `zmx attach <name>` spawns for itself.
+
+    launch() leaves the shell for the child to resolve, so unlike the tabs.py
+    path its wrapper argv carries no command to unwrap.
+    """
+    try:
+        from ..utils import resolved_shell
+        return os.path.basename(resolved_shell()[0]).lstrip('-')
+    except Exception:
+        return ''
 
 
 def _proc_name(p: dict) -> tuple[str, list[str]]:
@@ -157,6 +190,18 @@ def _icon_exe_candidates(procs: 'list[dict]', pgrp: int, proc_var: str | None) -
     leader = next((p for p in procs if p.get('pid') == pgrp), None)
     if leader is not None:
         name, cmdline = _proc_name(leader)
+        wrapped = _unwrap_session_cmdline(name, cmdline)
+        if wrapped is not None:
+            # Nothing the wrapped shell forks is visible here, so PROC -- the
+            # weakest signal everywhere else -- is the only live view and leads.
+            # The wrapped argv names whatever kitty asked the session to run
+            # (usually the shell), which is the right answer once PROC clears at
+            # the next prompt.
+            candidates = [proc_var] if proc_var and proc_var not in _SHELLS else []
+            inner = os.path.basename(wrapped[0]).lstrip('-') if wrapped and wrapped[0] else _default_shell_name()
+            if inner:
+                candidates.append(inner)
+            return candidates
         if name and name not in _SHELLS:
             main = (name, cmdline)
         elif name:
