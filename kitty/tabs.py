@@ -198,6 +198,7 @@ class Tab:  # {{{
         cwd_from: CwdRequest | None = None,
         no_initial_window: bool = False,
         session_name: str = '',
+        persist: bool = False,
     ):
         self.created_in_session_name = session_name
         self.tab_manager_ref = weakref.ref(tab_manager)
@@ -219,9 +220,9 @@ class Tab:  # {{{
             sl = self.enabled_layouts[0]
             self._set_current_layout(sl)
             if special_window is None:
-                self.new_window(cwd_from=cwd_from)
+                self.new_window(cwd_from=cwd_from, persist=persist)
             else:
-                self.new_special_window(special_window)
+                self.new_special_window(special_window, persist=persist)
         else:
             if session_tab.cwd:
                 self.cwd = session_tab.cwd
@@ -318,7 +319,10 @@ class Tab:  # {{{
             spec = window.launch_spec
             launched_window: Window | None = None
             if isinstance(spec, SpecialWindowInstance):
-                launched_window = self.new_special_window(spec)
+                # The default startup window is a SpecialWindow wrapping the resolved shell
+                # (session.py), so this is the path that persists it. The LaunchSpec branch
+                # below goes through launch(), which persists on its own.
+                launched_window = self.new_special_window(spec, persist=True)
                 if launched_window is not None:
                     launched_window.created_in_session_name = self.created_in_session_name
             else:
@@ -740,6 +744,28 @@ class Tab:  # {{{
         self.mark_tab_bar_dirty()
         self.relayout()
 
+    def _wrap_in_zmx(
+        self, cmd: list[str] | None, cwd: str | None, cwd_from: CwdRequest | None
+    ) -> tuple[list[str] | None, str, bool]:
+        '''
+        Rewrite cmd to run under a generated zmx session, honouring persist_windows.
+
+        Returns (cmd, session_name, kitty_owns_session). A missing zmx binary must never
+        cost the user a window, so it degrades to launching cmd unchanged.
+        '''
+        if not get_options().persist_windows:
+            return cmd, '', False
+        if not which('zmx'):
+            log_error('kitty: persist_windows is enabled but zmx was not found on PATH; launching directly')
+            return cmd, '', False
+        from .persist import make_session_name, zmx_command
+        # Mirror Child's own resolution (child.py: `cwd or os.getcwd()`) so the slug matches
+        # the directory the session really starts in. Deliberately not self.cwd: that is
+        # args.directory, which defaults to '.' and would slug every window as 'shell'.
+        cwd_for_name = cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.getcwd()
+        session_name = make_session_name(cwd_for_name)
+        return zmx_command(session_name, cmd), session_name, True
+
     def new_window(
         self,
         use_shell: bool = True,
@@ -765,7 +791,14 @@ class Tab:  # {{{
         next_to: Window | None = None,
         hold_after_ssh: bool = False,
         startup_command_via_shell_integration: Sequence[str] | str = (),
+        persist: bool = False,
     ) -> Window:
+        # launch() does its own zmx wrapping (it must, to honour --persist-name), so it
+        # leaves persist False and arrives here with cmd already rewritten.
+        persist_session_name = ''
+        persist_owned = False
+        if persist:
+            cmd, persist_session_name, persist_owned = self._wrap_in_zmx(cmd, cwd, cwd_from)
         cs = WindowCreationSpec(
             use_shell=use_shell, cmd=cmd, has_stdin=bool(stdin), override_title=override_title, cwd_from=cwd_from,
             cwd=cwd, overlay_for=overlay_for, env=None if env is None else tuple(env.items()), location=location,
@@ -787,6 +820,9 @@ class Tab:  # {{{
             allow_remote_control=allow_remote_control, remote_control_passwords=remote_control_passwords
         )
         window.creation_spec = cs
+        if persist_session_name:
+            window.set_user_var('zmx_session', persist_session_name)
+            window.set_user_var('zmx_owned', '1' if persist_owned else '0')
         # Must add child before laying out so that resize_pty succeeds
         get_boss().add_child(window)
         self._add_window(window, location=location, overlay_for=overlay_for, overlay_behind=overlay_behind, bias=bias, next_to=next_to)
@@ -807,8 +843,10 @@ class Tab:  # {{{
             remote_control_passwords: dict[str, Sequence[str]] | None = None,
             pass_fds: tuple[int, ...] = (),
             remote_control_fd: int = -1,
+            persist: bool = False,
     ) -> Window:
         return self.new_window(
+            persist=persist,
             use_shell=False, cmd=special_window.cmd, stdin=special_window.stdin,
             override_title=special_window.override_title,
             cwd_from=special_window.cwd_from, cwd=special_window.cwd, overlay_for=special_window.overlay_for,
@@ -1558,6 +1596,7 @@ class TabManager:  # {{{
         as_neighbor: bool = False,
         empty_tab: bool = False,
         location: str = 'last',
+        persist: bool = False,
     ) -> Tab:
         idx = len(self.tabs)
         tabs = tuple(self.tabs_to_be_shown_in_tab_bar)
@@ -1570,7 +1609,7 @@ class TabManager:  # {{{
             if not session_name and (sw_tab := sw.tabref()):
                 session_name = sw_tab.created_in_session_name
         t = Tab(self, no_initial_window=True, session_name=session_name) if empty_tab else Tab(
-                self, special_window=special_window, cwd_from=cwd_from, session_name=session_name)
+                self, special_window=special_window, cwd_from=cwd_from, session_name=session_name, persist=persist)
         if not empty_tab and session_name:
             for w in t:
                 w.created_in_session_name = session_name

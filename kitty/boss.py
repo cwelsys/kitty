@@ -3028,7 +3028,10 @@ class Boss:
             cmd.append(arg)
         return SpecialWindow(cmd, stdin, cwd_from=cwd_from)
 
-    def _new_tab(self, args: SpecialWindowInstance | Iterable[str], cwd_from: CwdRequest | None = None, as_neighbor: bool = False) -> Tab | None:
+    def _new_tab(
+        self, args: SpecialWindowInstance | Iterable[str], cwd_from: CwdRequest | None = None,
+        as_neighbor: bool = False, persist: bool = False,
+    ) -> Tab | None:
         special_window = None
         if args:
             if isinstance(args, SpecialWindowInstance):
@@ -3042,7 +3045,7 @@ class Boss:
             os_window_id = self.add_os_window()
             tm = self.os_window_map.get(os_window_id)
         if tm is not None:
-            return tm.new_tab(special_window=special_window, cwd_from=cwd_from, as_neighbor=as_neighbor)
+            return tm.new_tab(special_window=special_window, cwd_from=cwd_from, as_neighbor=as_neighbor, persist=persist)
         return None
 
     def _create_tab(self, args: list[str], cwd_from: CwdRequest | None = None) -> None:
@@ -3050,7 +3053,7 @@ class Boss:
         if args and args[0].startswith('!'):
             as_neighbor = 'neighbor' in args[0][1:].split(',')
             args = args[1:]
-        self._new_tab(args, as_neighbor=as_neighbor, cwd_from=cwd_from)
+        self._new_tab(args, as_neighbor=as_neighbor, cwd_from=cwd_from, persist=True)
 
     @ac('tab', 'Create a new tab')
     def new_tab(self, *args: str) -> None:
@@ -3068,9 +3071,9 @@ class Boss:
             wd = wd.split(os.pathsep) if str_is_multiple_paths else [wd]
         for path in wd:
             special_window = SpecialWindow(None, cwd=path)
-            self._new_tab(special_window)
+            self._new_tab(special_window, persist=True)
 
-    def _new_window(self, args: list[str], cwd_from: CwdRequest | None = None) -> Window | None:
+    def _new_window(self, args: list[str], cwd_from: CwdRequest | None = None, persist: bool = False) -> Window | None:
         if not self.os_window_map:
             os_window_id = self.add_os_window()
             tm = self.os_window_map.get(os_window_id)
@@ -3090,9 +3093,9 @@ class Boss:
         if args:
             w = tab.new_special_window(
                 self.args_to_special_window(args, cwd_from=cwd_from),
-                location=location, allow_remote_control=allow_remote_control)
+                location=location, allow_remote_control=allow_remote_control, persist=persist)
         else:
-            w = tab.new_window(cwd_from=cwd_from, location=location, allow_remote_control=allow_remote_control)
+            w = tab.new_window(cwd_from=cwd_from, location=location, allow_remote_control=allow_remote_control, persist=persist)
         if cwd_from is not None and (sw := cwd_from.window):
             session_name = sw.created_in_session_name
             if not session_name and (sw_tab := sw.tabref()):
@@ -3102,7 +3105,7 @@ class Boss:
 
     @ac('win', 'Create a new window')
     def new_window(self, *args: str) -> None:
-        self._new_window(list(args))
+        self._new_window(list(args), persist=True)
 
     @ac('win', '''
         Create a new window with working directory same as that of the active window.
@@ -3111,7 +3114,7 @@ class Boss:
         w = self.window_for_dispatch or self.active_window_for_cwd
         if w is None:
             return self.new_window(*args)
-        self._new_window(list(args), cwd_from=CwdRequest(w))
+        self._new_window(list(args), cwd_from=CwdRequest(w), persist=True)
 
     @ac('misc', '''
         Launch the specified program in a new window/tab/etc.
