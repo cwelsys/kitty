@@ -759,10 +759,11 @@ class Tab:  # {{{
             log_error('kitty: persist_windows is enabled but zmx was not found on PATH; launching directly')
             return cmd, '', False
         from .persist import make_session_name, zmx_command
-        # Mirror Child's own resolution (child.py: `cwd or os.getcwd()`) so the slug matches
-        # the directory the session really starts in. Deliberately not self.cwd: that is
-        # args.directory, which defaults to '.' and would slug every window as 'shell'.
-        cwd_for_name = cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.getcwd()
+        # Mirror the cwd actually handed to launch_child (`cwd or self.cwd`) so the slug
+        # matches the directory the session really starts in. self.cwd is args.directory,
+        # which defaults to the relative '.' and must be resolved or every window slugs
+        # as 'shell'.
+        cwd_for_name = cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.path.abspath(self.cwd or '.')
         session_name = make_session_name(cwd_for_name)
         return zmx_command(session_name, cmd), session_name, True
 
