@@ -18,7 +18,9 @@ from pty import CHILD, STDIN_FILENO, STDOUT_FILENO, fork
 from unittest import TestCase
 
 from kitty.config import finalize_keys, finalize_mouse_mappings
-from kitty.fast_data_types import TEXT_SIZE_CODE, Cursor, HistoryBuf, LineBuf, Screen, get_options, monotonic, set_options
+from kitty.fast_data_types import (
+    TEXT_SIZE_CODE, Cursor, HistoryBuf, LineBuf, Screen, base64_decode, get_options, monotonic, set_options
+)
 from kitty.options.parse import merge_result_dicts
 from kitty.options.types import Options, defaults
 from kitty.rgb import to_color
@@ -115,7 +117,20 @@ class Callbacks:
             self.write(c.encode('ascii'))
 
     def desktop_notify(self, osc_code: int, raw_data: memoryview) -> None:
-        self.notifications.append((osc_code, str(raw_data, 'utf-8')))
+        data = str(raw_data, 'utf-8')
+        if osc_code == 1337:
+            # Shell integration reports the shell's title as a SHELL_TITLE user
+            # var rather than an OSC title; Window.set_user_var routes it to the
+            # shell title layer. Mirror that here so title assertions still see
+            # titles, since a plain Callbacks has no title layers.
+            for record in data.split(';'):
+                key, _, val = record.partition('=')
+                if key == 'SetUserVar':
+                    ukey, has_equal, uval = val.partition('=')
+                    if ukey == 'SHELL_TITLE':
+                        decoded = base64_decode(uval) if has_equal == '=' and uval else b''
+                        self.titlebuf.append(str(decoded, 'utf-8', 'replace'))
+        self.notifications.append((osc_code, data))
 
     def open_url(self, url: str, hyperlink_id: int) -> None:
         self.open_urls.append((url, hyperlink_id))
