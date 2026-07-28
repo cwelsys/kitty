@@ -1088,7 +1088,32 @@ class Boss:
         else:
             window = q or self.active_window
         if window:
+            self.reap_zmx_session(window)
             self.child_monitor.mark_for_close(window.id)
+
+    def reap_zmx_session(self, window: Window) -> None:
+        '''
+        Kill the zmx session backing a window that is being deliberately closed.
+
+        Only called from mark_window_for_close, which is the single funnel for
+        user-initiated close (close_window, close_tab_no_confirm,
+        close_windows_no_confirm). Natural child death does not pass through
+        here, which is what we want: when the shell exits via `exit` the zmx
+        session ends on its own and there is nothing to kill.
+        '''
+        from .persist import reap_command, should_reap
+        if not should_reap(window.user_vars):
+            return
+        cmd = reap_command(window.user_vars.get('zmx_session', ''))
+        if not cmd:
+            return
+        import subprocess
+        try:
+            subprocess.Popen(
+                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True)
+        except OSError as err:
+            log_error(f'kitty: failed to reap zmx session {cmd[-1]}: {err}')
 
     @ac('win', 'Close the currently active window')
     def close_window(self) -> None:
