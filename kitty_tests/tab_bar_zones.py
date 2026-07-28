@@ -302,6 +302,22 @@ class TestTabBarZones(BaseTest):
         # pure-ascii behaviour unchanged
         self.ae(truncate_text('abcdef', 4, '…'), 'abc…')
 
+    def test_pill_pad_clears_the_right_cap(self):
+        # A PUA icon and its pad render as one ligature with the glyph centred
+        # across both cells, so the pad is consumed by the glyph rather than
+        # left as a gap and the icon runs straight into the closing cap. Such an
+        # icon needs a second pad cell to actually separate the two.
+        from kitty.tab_bar_zones.draw import _pill_pad, _pill_width
+        nvim = ''
+        self.ae(_pill_pad(nvim), 2)
+        self.ae(_pill_pad('1 ' + nvim), 2)  # index + icon, icon still last
+        self.ae(_pill_pad('1'), 1)          # index only, no ligature to clear
+        self.ae(_pill_pad(''), 1)
+        # width must count whatever the draw emits or pills overlap each other
+        self.ae(_pill_width(nvim, '', ''), 1 + 2)
+        self.ae(_pill_width('1', '', ''), 1 + 1)
+        self.ae(_pill_width(nvim, '', ''), 1 + 1 + 2 + 1)
+
     def test_truncate_text_keeps_pua_icon_whole(self):
         # A PUA glyph and the space pad_pua_icon appends are one two-cell
         # ligature. Emitting the glyph without its space leaves the font drawing

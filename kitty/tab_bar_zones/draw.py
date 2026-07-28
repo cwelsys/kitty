@@ -16,6 +16,7 @@ from ..tab_bar import (
     as_rgb,
 )
 from ..utils import log_error
+from .text import _ends_with_pua
 
 
 class TabContent(NamedTuple):
@@ -43,9 +44,21 @@ def _display_width(s: str) -> int:
     return w if w >= 0 else len(s)
 
 
+def _pill_pad(icon: str) -> int:
+    """Pad cells to draw after the icon, before the closing border.
+
+    A PUA glyph and the space after it shape into a single two-cell ligature
+    with the glyph centred across *both* cells, so that space ends up filled by
+    the right half of the glyph instead of separating it from the border. Such
+    an icon needs a second pad cell to leave a real gap; anything else only
+    needs the one.
+    """
+    return 2 if _ends_with_pua(icon) else 1
+
+
 def _pill_width(icon: str, border_left: str, border_right: str) -> int:
-    """Calculate drawn width of a tab pill: [border_left][icon ][border_right]."""
-    return _display_width(border_left) + _display_width(icon) + 1 + _display_width(border_right)
+    """Calculate drawn width of a tab pill: [border_left][icon+pad][border_right]."""
+    return _display_width(border_left) + _display_width(icon) + _pill_pad(icon) + _display_width(border_right)
 
 
 def _draw_pill(screen: Screen, content: TabContent, border_left: str, border_right: str) -> None:
@@ -63,7 +76,7 @@ def _draw_pill(screen: Screen, content: TabContent, border_left: str, border_rig
     screen.cursor.bg = content.icon_bg
     screen.cursor.fg = content.icon_fg
     screen.cursor.bold = content.bold_icon
-    screen.draw(content.icon + ' ')
+    screen.draw(content.icon + ' ' * _pill_pad(content.icon))
     screen.cursor.bold = False
 
     # Right border
