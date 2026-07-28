@@ -1095,11 +1095,14 @@ class Boss:
         '''
         Kill the zmx session backing a window that is being deliberately closed.
 
-        Only called from mark_window_for_close, which is the single funnel for
-        user-initiated close (close_window, close_tab_no_confirm,
-        close_windows_no_confirm). Natural child death does not pass through
-        here, which is what we want: when the shell exits via `exit` the zmx
-        session ends on its own and there is nothing to kill.
+        Called from mark_window_for_close, and from on_os_window_closed for each
+        window of an OS window going down whole, which does not pass through
+        mark_window_for_close. Quit is the latter: it marks every OS window
+        IMPERATIVE_CLOSE_REQUESTED and closes them by that path.
+
+        Natural child death does not pass through here, which is what we want:
+        when the shell exits via `exit` the zmx session ends on its own and there
+        is nothing to kill.
         '''
         from .persist import reap_command, should_reap
         if not should_reap(window.user_vars):
@@ -2180,6 +2183,10 @@ class Boss:
 
     def on_os_window_closed(self, os_window_id: int, x: int, y: int, viewport_width: int, viewport_height: int, is_layer_shell: bool) -> None:
         tm = self.os_window_map.pop(os_window_id, None)
+        if tm is not None:
+            for tab in tm:
+                for w in tab:
+                    self.reap_zmx_session(w)
         opts = get_options()
         if not is_layer_shell:
             if opts.remember_window_position and not is_wayland() and not self.os_window_map:
