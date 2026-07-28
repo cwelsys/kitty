@@ -75,3 +75,28 @@ class Persist(BaseTest):
     def test_reap_command_rejects_empty(self):
         from kitty.persist import reap_command
         self.assertEqual(reap_command(''), [])
+
+    def test_session_pid_command(self):
+        from kitty.persist import session_pid_command
+        self.assertEqual(
+            session_pid_command('kmux-a3f9'), ['zmx', 'list', '--where', 'name=kmux-a3f9'])
+        self.assertEqual(
+            session_pid_command('work', '/opt/homebrew/bin/zmx'),
+            ['/opt/homebrew/bin/zmx', 'list', '--where', 'name=work'])
+
+    def test_parse_session_pid(self):
+        from kitty.persist import parse_session_pid
+        line = (
+            '  name=kmux-a3f9\tpid=3954121\tclients=1\tcreated=1785274134'
+            '\tstart_dir=/home/cwel/src\tcmd=/bin/zsh\n')
+        self.assertEqual(parse_session_pid(line, 'kmux-a3f9'), 3954121)
+        # a command containing spaces and = must not confuse field splitting
+        line = "  name=w\tpid=42\tcmd=/bin/sh -c 'x=1 sleep 60'\n"
+        self.assertEqual(parse_session_pid(line, 'w'), 42)
+        # only the named session counts, so a prefix match cannot leak a pid
+        self.assertEqual(parse_session_pid('  name=work-2\tpid=7\n', 'work'), 0)
+        # no session, no pid field, unparseable pid
+        self.assertEqual(parse_session_pid('no sessions found in /run/user/1000/zmx\n', 'w'), 0)
+        self.assertEqual(parse_session_pid('  name=w\tclients=0\n', 'w'), 0)
+        self.assertEqual(parse_session_pid('  name=w\tpid=notanint\n', 'w'), 0)
+        self.assertEqual(parse_session_pid('', 'w'), 0)

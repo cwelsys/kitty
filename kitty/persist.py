@@ -71,6 +71,31 @@ def zmx_command(session_name: str, cmd: Sequence[str] | None) -> list[str]:
     return ans
 
 
+def session_pid_command(session_name: str, zmx_exe: str = 'zmx') -> list[str]:
+    ' The command that reports the session line naming its root process '
+    return [zmx_exe, 'list', '--where', f'name={session_name}']
+
+
+def parse_session_pid(output: str, session_name: str) -> int:
+    '''
+    Root process pid for session_name in `zmx list` output, or 0 if absent.
+
+    Lines are tab separated key=value pairs. The root pid is the process zmx
+    spawned for the session; it owns the pty the real shell runs on, which is a
+    different pty from the one kitty gave the `zmx attach` client. `--where`
+    already filters, but the name is rechecked because a prefix match would
+    silently return the wrong session's pid.
+    '''
+    for line in output.splitlines():
+        fields = dict(f.split('=', 1) for f in line.strip().split('\t') if '=' in f)
+        if fields.get('name') == session_name:
+            try:
+                return int(fields['pid'])
+            except (KeyError, ValueError):
+                return 0
+    return 0
+
+
 def reap_command(session_name: str, zmx_exe: str = 'zmx') -> list[str]:
     '''
     The command that kills a zmx session, or [] if there is nothing to kill.

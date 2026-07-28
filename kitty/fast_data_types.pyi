@@ -381,6 +381,10 @@ def user_cache_dir() -> str:
     pass
 
 
+def tty_foreground_process_group(pid: int) -> int:
+    pass
+
+
 def process_group_map() -> Tuple[Tuple[int, int], ...]:
     pass
 

@@ -229,10 +229,10 @@ class TestTabBarZones(BaseTest):
         from kitty.tab_bar_zones import content
         def P(pid, *cmd):
             return {'pid': pid, 'cmdline': list(cmd)}
-        # A zmx-wrapped window's real process tree lives under a detached daemon
-        # on another pty, so kitty only ever sees the wrapper. At the prompt the
-        # wrapped argv names the shell -- without unwrapping, every idle tab
-        # would fall back to the generic icon.
+        # Windows kitty persisted itself never reach here -- Child resolves the
+        # session pid and reports the real process group. This is the fallback
+        # for a wrapper kitty did not start (a hand-run `zmx attach`), where the
+        # client argv is the only thing left to read.
         self.ae(
             content._icon_exe_candidates(
                 [P(10, 'zmx', 'attach', 'kitty-a3f9', '/bin/zsh')], 10, None),

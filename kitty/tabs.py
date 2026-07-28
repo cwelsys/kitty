@@ -677,6 +677,7 @@ class Tab:  # {{{
         remote_control_fd: int = -1,
         hold_after_ssh: bool = False,
         startup_command_via_shell_integration: Sequence[str] | str = (),
+        persist_session: str = '',
     ) -> Child:
         check_for_suitability = True
         if cmd is None:
@@ -728,7 +729,8 @@ class Tab:  # {{{
                 cmd, cwd or self.cwd, stdin, fenv, cwd_from, is_clone_launch=is_clone_launch,
                 add_listen_on_env_var=add_listen_on_env_var, hold=hold, pass_fds=pass_fds,
                 remote_control_fd=remote_control_fd, hold_after_ssh=hold_after_ssh,
-                startup_command_via_shell_integration=startup_command_via_shell_integration)
+                startup_command_via_shell_integration=startup_command_via_shell_integration,
+                persist_session=persist_session)
         ans.fork()
         return ans
 
@@ -793,10 +795,12 @@ class Tab:  # {{{
         hold_after_ssh: bool = False,
         startup_command_via_shell_integration: Sequence[str] | str = (),
         persist: bool = False,
+        persist_session: str = '',
     ) -> Window:
         # launch() does its own zmx wrapping (it must, to honour --persist-name), so it
-        # leaves persist False and arrives here with cmd already rewritten.
-        persist_session_name = ''
+        # leaves persist False and arrives here with cmd already rewritten, passing the
+        # session name it chose so the Child can still see into it.
+        persist_session_name = persist_session
         persist_owned = False
         if persist:
             cmd, persist_session_name, persist_owned = self._wrap_in_zmx(cmd, cwd, cwd_from)
@@ -814,6 +818,7 @@ class Tab:  # {{{
             is_clone_launch=is_clone_launch, add_listen_on_env_var=False if allow_remote_control and remote_control_passwords else True,
             hold=hold, pass_fds=pass_fds, remote_control_fd=remote_control_fd, hold_after_ssh=hold_after_ssh,
             startup_command_via_shell_integration=startup_command_via_shell_integration,
+            persist_session=persist_session_name,
         )
         window = Window(
             self, child, self.args, override_title=override_title,
@@ -821,7 +826,7 @@ class Tab:  # {{{
             allow_remote_control=allow_remote_control, remote_control_passwords=remote_control_passwords
         )
         window.creation_spec = cs
-        if persist_session_name:
+        if persist and persist_session_name:
             window.set_user_var('zmx_session', persist_session_name)
             window.set_user_var('zmx_owned', '1' if persist_owned else '0')
         # Must add child before laying out so that resize_pty succeeds

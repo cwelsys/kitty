@@ -874,7 +874,8 @@ def _launch(
         with Window.set_ignore_focus_changes_for_new_windows(opts.keep_focus):
             new_window: Window = tab.new_window(
                 env=env or None, watchers=watchers or None, is_clone_launch=is_clone_launch, next_to=next_to,
-                startup_command_via_shell_integration=startup_command_via_shell_integration, **kw)
+                startup_command_via_shell_integration=startup_command_via_shell_integration,
+                persist_session=persist_session_name, **kw)
             new_window.created_in_session_name = add_to_session
             if child_death_callback is not None:
                 boss.monitor_pid(new_window.child.pid or 0, child_death_callback)

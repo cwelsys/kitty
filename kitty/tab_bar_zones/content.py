@@ -121,8 +121,11 @@ _INTERPRETERS = {
 
 
 # Session-persistence wrappers that run their child under a detached daemon on
-# another pty. kitty's pty child is only the wrapper's client process, so the
-# whole process tree behind it is invisible to foreground_processes.
+# another pty, leaving only the client process visible on kitty's own pty.
+# Windows kitty persisted itself are handled in Child, which resolves the
+# session's real pid and reports its process group -- so reaching here means a
+# wrapper kitty did not start, i.e. the user ran `zmx attach` by hand, or the
+# session could not be resolved. Both are best served by reading the argv.
 _SESSION_WRAPPERS = {'zmx'}
 
 
