@@ -16,7 +16,7 @@ from ..tab_bar import (
     as_rgb,
 )
 from ..utils import log_error
-from .text import _ends_with_pua
+from .text import pad_pua_icon
 
 
 class TabContent(NamedTuple):
@@ -44,45 +44,63 @@ def _display_width(s: str) -> int:
     return w if w >= 0 else len(s)
 
 
-def _pill_pad(icon: str) -> int:
-    """Pad cells to draw after the icon, before the closing border.
+# Cells of pill background between the two caps. Fixed, so switching tabs or
+# changing the foreground process never reflows the bar.
+PILL_BODY_CELLS = 4
 
-    A PUA glyph and the space after it shape into a single two-cell ligature
-    with the glyph centred across *both* cells, so that space ends up filled by
-    the right half of the glyph instead of separating it from the border. Such
-    an icon needs a second pad cell to leave a real gap; anything else only
-    needs the one.
+
+def _pill_cells(
+    content: TabContent,
+    border_left: str,
+    border_right: str,
+) -> list[tuple[int, int, bool, str]]:
+    """Return a list of (bg, fg, bold, text) cells for one tab pill.
+
+    Layout: [cap_left][lead][icon + pad][trail][cap_right]
+
+    The caps are glyphs coloured with the pill colour on the bar background;
+    the body between them is a run of pill-coloured cells with the content
+    centred on it. A PUA icon and the space after it are one two-cell ligature
+    and are emitted as a single unit, so no caller can split the glyph from its
+    pad. Content wider than the body grows the body rather than being clipped,
+    which is what keeps `tab_bar_icon_elements index icon` legible.
     """
-    return 2 if _ends_with_pua(icon) else 1
+    icon = pad_pua_icon(content.icon)
+    icon_width = _display_width(icon)
+    body = max(PILL_BODY_CELLS, icon_width + 2)
+    lead = (body - icon_width) // 2
+    trail = body - icon_width - lead
+
+    cells: list[tuple[int, int, bool, str]] = []
+    if border_left:
+        cells.append((0, content.icon_bg, False, border_left))
+    if lead:
+        cells.append((content.icon_bg, content.icon_fg, False, ' ' * lead))
+    if icon:
+        cells.append((content.icon_bg, content.icon_fg, content.bold_icon, icon))
+    if trail:
+        cells.append((content.icon_bg, content.icon_fg, False, ' ' * trail))
+    if border_right:
+        cells.append((0, content.icon_bg, False, border_right))
+    return cells
 
 
-def _pill_width(icon: str, border_left: str, border_right: str) -> int:
-    """Calculate drawn width of a tab pill: [border_left][icon+pad][border_right]."""
-    return _display_width(border_left) + _display_width(icon) + _pill_pad(icon) + _display_width(border_right)
+def _pill_width(content: TabContent, border_left: str, border_right: str) -> int:
+    """Calculate drawn width of a tab pill from the cells it will draw."""
+    return sum(_display_width(text) for _, _, _, text in _pill_cells(content, border_left, border_right))
 
 
 def _draw_pill(screen: Screen, content: TabContent, border_left: str, border_right: str) -> None:
-    """Draw a single tab pill to screen at current cursor position.
+    """Draw a single tab pill from the cell list returned by _pill_cells.
 
-    Structure: [border_left][icon ][border_right]
     Colors come from the TabContent. The engine never resolves colors.
     """
-    # Left border (icon_bg on transparent)
-    screen.cursor.bg = 0
-    screen.cursor.fg = content.icon_bg
-    screen.draw(border_left)
-
-    # Icon section
-    screen.cursor.bg = content.icon_bg
-    screen.cursor.fg = content.icon_fg
-    screen.cursor.bold = content.bold_icon
-    screen.draw(content.icon + ' ' * _pill_pad(content.icon))
+    for bg, fg, bold, text in _pill_cells(content, border_left, border_right):
+        screen.cursor.bg = bg
+        screen.cursor.fg = fg
+        screen.cursor.bold = bold
+        screen.draw(text)
     screen.cursor.bold = False
-
-    # Right border
-    screen.cursor.bg = 0
-    screen.cursor.fg = content.icon_bg
-    screen.draw(border_right)
 
 
 # Gap (in cells) between a zone and the center tab zone.
@@ -199,7 +217,7 @@ def draw_tab_with_zones(
     # Pills are icon+index only so widths are uniform; switching tabs never
     # reflows the bar.
     center_widths = [
-        _pill_width(c.icon, border_left, border_right)
+        _pill_width(c, border_left, border_right)
         for c in center_contents
     ]
 

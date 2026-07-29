@@ -302,21 +302,85 @@ class TestTabBarZones(BaseTest):
         # pure-ascii behaviour unchanged
         self.ae(truncate_text('abcdef', 4, '…'), 'abc…')
 
-    def test_pill_pad_clears_the_right_cap(self):
-        # A PUA icon and its pad render as one ligature with the glyph centred
-        # across both cells, so the pad is consumed by the glyph rather than
-        # left as a gap and the icon runs straight into the closing cap. Such an
-        # icon needs a second pad cell to actually separate the two.
-        from kitty.tab_bar_zones.draw import _pill_pad, _pill_width
-        nvim = ''
-        self.ae(_pill_pad(nvim), 2)
-        self.ae(_pill_pad('1 ' + nvim), 2)  # index + icon, icon still last
-        self.ae(_pill_pad('1'), 1)          # index only, no ligature to clear
-        self.ae(_pill_pad(''), 1)
-        # width must count whatever the draw emits or pills overlap each other
-        self.ae(_pill_width(nvim, '', ''), 1 + 2)
-        self.ae(_pill_width('1', '', ''), 1 + 1)
-        self.ae(_pill_width(nvim, '', ''), 1 + 1 + 2 + 1)
+    def test_pill_cells_are_the_only_layout(self):
+        # Width and drawing derive from one cell list, so they cannot drift:
+        # this is the defect class the pill kept regressing into. The drawn
+        # cursor advance is the ground truth _pill_width has to match.
+        from kitty.tab_bar_zones import draw
+        bl, br = '', ''
+
+        def pill(icon):
+            return draw.TabContent(icon=icon, icon_fg=1, icon_bg=2)
+
+        for icon, expected in (
+            ('', 6),      # icon only: the shipped configuration
+            ('1', 6),           # index only: same width, pills stay uniform
+            ('', 6),            # no content at all still draws a pill
+            ('1 ', 8),    # index + icon: body grows rather than clipping
+        ):
+            content = pill(icon)
+            cells = draw._pill_cells(content, bl, br)
+            summed = sum(draw._display_width(text) for _, _, _, text in cells)
+            self.ae(draw._pill_width(content, bl, br), summed, f'width != cells for {icon!r}')
+            self.ae(summed, expected, f'unexpected width for {icon!r}')
+
+            screen = self.create_screen(cols=40, lines=1)
+            screen.cursor.x = 0
+            draw._draw_pill(screen, content, bl, br)
+            self.ae(screen.cursor.x, expected, f'drawn advance != width for {icon!r}')
+
+    def test_pill_centres_content_in_the_body(self):
+        # The body is a fixed run of pill-coloured cells with the content
+        # centred on it; the caps sit on the bar background at either end.
+        from kitty.tab_bar_zones import draw
+        bl, br = '', ''
+        content = draw.TabContent(icon='', icon_fg=1, icon_bg=2)
+        cells = draw._pill_cells(content, bl, br)
+
+        self.ae([text for _, _, _, text in cells], [bl, ' ', ' ', ' ', br])
+        # caps: pill colour as fg on the bar background
+        self.ae(cells[0][:3], (0, 2, False))
+        self.ae(cells[-1][:3], (0, 2, False))
+        # body: pill background throughout, icon bold
+        self.assertTrue(all(bg == 2 for bg, _, _, _ in cells[1:-1]))
+        self.ae(cells[2][2], True)
+
+        # lead == (body - content) // 2 for every combination of content width
+        for icon, lead, trail in (
+            ('', 1, 1),   # content 2 in body 4
+            ('1', 1, 2),        # content 1 in body 4
+            ('', 2, 2),         # content 0 in body 4
+            ('1 ', 1, 1),  # content 4 in body 6
+        ):
+            cells = draw._pill_cells(draw.TabContent(icon=icon, icon_fg=1, icon_bg=2), '', '')
+            texts = [text for _, _, _, text in cells]
+            body = sum(draw._display_width(t) for t in texts)
+            content_w = draw._display_width(draw.pad_pua_icon(icon))
+            if icon:
+                got_lead = draw._display_width(texts[0]) if texts[0].strip() == '' else 0
+                got_trail = draw._display_width(texts[-1]) if texts[-1].strip() == '' else 0
+            else:  # no icon cell at all: the body is lead + trail
+                got_lead, got_trail = (draw._display_width(t) for t in texts)
+            self.ae((got_lead, got_trail), (lead, trail), f'off centre for {icon!r}')
+            self.ae(got_lead, (body - content_w) // 2, f'lead is not the centring rule for {icon!r}')
+            self.ae(got_lead + content_w + got_trail, body, f'cells do not fill the body for {icon!r}')
+
+    def test_pill_never_splits_a_pua_icon_from_its_pad(self):
+        # A PUA glyph and the space after it shape into one two-cell ligature
+        # with the glyph centred across both cells. Emitting the glyph alone
+        # draws a two-cell glyph into one cell — the sliced icon. The pair is
+        # built here so no caller is able to split it.
+        from kitty.tab_bar_zones import draw
+        for icon in ('', '1 ', '\U000f011b'):
+            cells = draw._pill_cells(
+                draw.TabContent(icon=icon, icon_fg=1, icon_bg=2), '', '')
+            for _, _, _, text in cells:
+                if icon[-1] in text:
+                    self.assertTrue(text.endswith(' '), f'{icon!r} emitted without its pad')
+                    self.ae(draw._display_width(text), draw._display_width(icon) + 1)
+                    break
+            else:
+                self.fail(f'{icon!r} never appeared in the cell list')
 
     def test_truncate_text_keeps_pua_icon_whole(self):
         # A PUA glyph and the space pad_pua_icon appends are one two-cell

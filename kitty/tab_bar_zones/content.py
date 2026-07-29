@@ -333,8 +333,8 @@ def tab_content(
     exe, _cwd, _hostname = get_foreground_process(tab.tab_id)
     icon_str = cfg.icon_for(exe)
 
-    # No PUA padding here: the pill's own trailing pad cell feeds the
-    # icon's two-cell ligature, and the caps close it snugly.
+    # No PUA padding here: _pill_cells pairs the icon with its pad space when
+    # it lays the pill out, and double-padding would widen every pill.
     icon_parts = []
     for element in cfg.icon_elements:
         if element == 'index':
