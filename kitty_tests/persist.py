@@ -55,6 +55,13 @@ class Persist(BaseTest):
         self.assertFalse(should_reap({}))
         self.assertFalse(should_reap({'zmx_owned': '1'}))
 
+    def test_auto_persist_applies(self):
+        from kitty.persist import auto_persist_applies
+        self.assertFalse(auto_persist_applies(True, is_layer_shell=True))
+        self.assertTrue(auto_persist_applies(True, is_layer_shell=False))
+        self.assertFalse(auto_persist_applies(False, is_layer_shell=False))
+        self.assertFalse(auto_persist_applies(False, is_layer_shell=True))
+
     def test_zmx_command(self):
         from kitty.persist import zmx_command
         self.assertEqual(zmx_command('kmux-a3f9', None), ['zmx', 'attach', 'kmux-a3f9'])

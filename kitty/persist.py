@@ -34,6 +34,18 @@ def make_session_name(cwd: str, rand: Callable[[], str] | None = None) -> str:
     return f'{slugify(cwd)}-{suffix}'
 
 
+def auto_persist_applies(persist_windows: bool, is_layer_shell: bool) -> bool:
+    '''
+    Whether persist_windows should sweep up a window on this OS window.
+
+    Panels are excluded: zmx clears the screen and resets modes when it
+    attaches, so a wrapped panel loses everything it writes at startup. A
+    screensaver enabling mouse reporting on its first line ends up never
+    seeing the mouse.
+    '''
+    return persist_windows and not is_layer_shell
+
+
 def drop_inherited_session(env: MutableMapping[str, str]) -> None:
     '''
     Remove ZMX_SESSION from kitty's own environment at startup.

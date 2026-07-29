@@ -755,7 +755,10 @@ class Tab:  # {{{
         Returns (cmd, session_name, kitty_owns_session). A missing zmx binary must never
         cost the user a window, so it degrades to launching cmd unchanged.
         '''
-        if not get_options().persist_windows:
+        from .fast_data_types import get_os_window_size
+        from .persist import auto_persist_applies
+        sz = get_os_window_size(self.os_window_id)
+        if not auto_persist_applies(get_options().persist_windows, bool(sz and sz['is_layer_shell'])):
             return cmd, '', False
         if not which('zmx'):
             log_error('kitty: persist_windows is enabled but zmx was not found on PATH; launching directly')
