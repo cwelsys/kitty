@@ -1143,7 +1143,7 @@ render_filled_sprite(pixel *buf, unsigned num_glyphs, FontCellMetrics scaled_met
 }
 
 static void
-apply_horizontal_alignment(pixel *canvas, RunFont rf, bool center_glyph, GlyphRenderInfo ri, unsigned max_render_width, unsigned canvas_height, unsigned num_cells, unsigned num_glyphs, bool was_colored) {
+apply_horizontal_alignment(pixel *canvas, RunFont rf, bool center_glyph, GlyphRenderInfo ri, unsigned max_render_width, unsigned canvas_height, unsigned num_cells, unsigned num_glyphs, bool was_colored, bool ink_centered) {
     int delta = 0;
 #ifdef __APPLE__
     if (num_cells == 2 && was_colored) center_glyph = true;
@@ -1153,12 +1153,37 @@ apply_horizontal_alignment(pixel *canvas, RunFont rf, bool center_glyph, GlyphRe
     if (rf.subscale_n && rf.subscale_d && rf.align.horizontal && rf.subscale_n < rf.subscale_d) {
         delta = max_render_width - ri.rendered_width;
         if (rf.align.horizontal == 2) delta /= 2;
-    } else if (center_glyph && num_glyphs && num_cells > 1 && ri.rendered_width < max_render_width) {
+    } else if (center_glyph && !ink_centered && num_glyphs && num_cells > 1 && ri.rendered_width < max_render_width) {
         unsigned half = (max_render_width - ri.rendered_width) / 2;
         if (half > 1) delta = half;
     }
     delta -= ri.x;
     if (delta > 0) right_shift_canvas(canvas, ri.canvas_width, canvas_height, delta);
+}
+
+static void
+apply_horizontal_ink_centering(pixel *canvas, unsigned canvas_width, unsigned cell_height) {
+    // Center the rendered ink horizontally in the multi-cell span, like
+    // apply_vertical_centering. Centering the advance instead leaves Nerd Font
+    // icons off center and clips those wider than their advance.
+    unsigned first = canvas_width, last = 0;
+    for (unsigned y = 0; y < cell_height; y++) {
+        const pixel *row = canvas + (size_t)y * canvas_width;
+        for (unsigned x = 0; x < canvas_width; x++) {
+            if (row[x]) { if (x < first) first = x; if (x > last) last = x; }
+        }
+    }
+    if (first > last) return;
+    const unsigned ink_width = last - first + 1;
+    const int delta = (int)((canvas_width - ink_width) / 2) - (int)first;
+    if (!delta) return;
+    const unsigned cleared = MIN((unsigned)(delta > 0 ? delta : -delta), ink_width);
+    for (unsigned y = 0; y < cell_height; y++) {
+        pixel *row = canvas + (size_t)y * canvas_width;
+        memmove(row + (int)first + delta, row + first, sizeof(pixel) * ink_width);
+        if (delta > 0) memset(row + first, 0, sizeof(pixel) * cleared);
+        else memset(row + (int)(first + ink_width) + delta, 0, sizeof(pixel) * cleared);
+    }
 }
 
 static void
@@ -1271,13 +1296,16 @@ render_group(
         } else memcpy(fg->canvas.buf, canvas, sizeof(pixel) * canvas_width * scaled_metrics.cell_height);
         canvas = fg->canvas.buf;
     }
-    apply_horizontal_alignment(
-        canvas, rf, center_glyph, ri, canvas_width,
-        scaled_metrics.cell_height, num_scaled_cells, num_glyphs, was_colored);
     // center_glyph is set only for PUA+space ligature runs; emoji
     // (was_colored) already fill the cell and are left alone.
-    if (center_glyph && !was_colored && num_glyphs && num_scaled_cells > 1)
+    const bool ink_centered = center_glyph && !was_colored && num_glyphs && num_scaled_cells > 1;
+    apply_horizontal_alignment(
+        canvas, rf, center_glyph, ri, canvas_width,
+        scaled_metrics.cell_height, num_scaled_cells, num_glyphs, was_colored, ink_centered);
+    if (ink_centered) {
+        apply_horizontal_ink_centering(canvas, ri.canvas_width, scaled_metrics.cell_height);
         apply_vertical_centering(canvas, ri.canvas_width, scaled_metrics.cell_height);
+    }
     if (PyErr_Occurred()) PyErr_Print();
     // display_glyph(canvas, canvas_width, scaled_metrics.cell_height); printf("\n");
 
