@@ -1593,7 +1593,6 @@ class TabManager:  # {{{
             step = 1 if idx < nidx else -1
             for i in range(idx, nidx, step):
                 self.swap_tabs(i, i + step)
-            nidx = self.tabs.index(new_active_tab)
             self._set_active_tab(nidx)
             self.mark_tab_bar_dirty()
 
