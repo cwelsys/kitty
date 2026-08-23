@@ -328,9 +328,6 @@ class Tab:  # {{{
             spec = window.launch_spec
             launched_window: Window | None = None
             if isinstance(spec, SpecialWindowInstance):
-                # The default startup window is a SpecialWindow wrapping the resolved shell
-                # (session.py), so this is the path that persists it. The LaunchSpec branch
-                # below goes through launch(), which persists on its own.
                 launched_window = self.new_special_window(spec, persist=True)
                 if launched_window is not None:
                     launched_window.created_in_session_name = self.created_in_session_name
@@ -842,10 +839,6 @@ class Tab:  # {{{
             return cmd, '', False
         from .persist import make_session_name, zmx_command
 
-        # Mirror the cwd actually handed to launch_child (`cwd or self.cwd`) so the slug
-        # matches the directory the session really starts in. self.cwd is args.directory,
-        # which defaults to the relative '.' and must be resolved or every window slugs
-        # as 'shell'.
         cwd_for_name = cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.path.abspath(self.cwd or '.')
         session_name = make_session_name(cwd_for_name)
         return zmx_command(session_name, cmd), session_name, True
@@ -878,9 +871,6 @@ class Tab:  # {{{
         persist: bool = False,
         persist_session: str = '',
     ) -> Window:
-        # launch() does its own zmx wrapping (it must, to honour --persist-name), so it
-        # leaves persist False and arrives here with cmd already rewritten, passing the
-        # session name it chose so the Child can still see into it.
         persist_session_name = persist_session
         persist_owned = False
         if persist:
@@ -1522,17 +1512,12 @@ class TabManager:  # {{{
         self.mark_tab_bar_dirty()
         if tab is self.active_tab:
             sync_os_window_title(self.os_window_id)
-        # A title change (e.g. shell preexec) often lands just *before* the
-        # foreground process actually changes, so anything derived from the
-        # foreground process (tab bar icons) is redrawn one event too early.
-        # Refresh once more shortly after to pick up the settled state.
         if not self._deferred_tab_bar_refresh_pending:
             self._deferred_tab_bar_refresh_pending = True
             add_timer(self._deferred_tab_bar_refresh, 0.35, False)
 
     def _deferred_tab_bar_refresh(self, timer_id: int | None = None) -> None:
         self._deferred_tab_bar_refresh_pending = False
-        # The TabManager may have been destroyed while the timer was pending.
         if getattr(self, 'tabs', None):
             self.mark_tab_bar_dirty()
 

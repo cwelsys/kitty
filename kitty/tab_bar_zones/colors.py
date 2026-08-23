@@ -28,4 +28,4 @@ class ColorResolver:
             return self._theme.get(color, as_rgb(0xCCCCCC))
         if color is None:
             return as_rgb(0xCCCCCC)
-        return as_rgb(color_as_int(color))  # Color
+        return as_rgb(color_as_int(color))

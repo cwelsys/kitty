@@ -68,18 +68,12 @@ process_group_map(PyObject *self UNUSED, PyObject *args UNUSED) {
 
 static PyObject*
 tty_foreground_process_group(PyObject *self UNUSED, PyObject *args) {
-    // The foreground process group of pid's controlling terminal, i.e. what
-    // tcgetpgrp() would report for a terminal we have no descriptor for. Used
-    // to see into session multiplexers, whose real shell runs on a pty owned by
-    // a daemon rather than on the pty kitty created. Linux reads tpgid out of
-    // /proc in child.py; macOS has no /proc, so ask the kernel directly.
     long pid;
     if (!PyArg_ParseTuple(args, "l", &pid)) return NULL;
     struct kinfo_proc kp;
     size_t len = sizeof(kp);
     int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, (int)pid};
     if (sysctl(mib, 4, &kp, &len, NULL, 0) != 0) return PyErr_SetFromErrno(PyExc_OSError);
-    // A zero-length result means the process is gone; sysctl reports that as success.
     if (len == 0) { PyErr_Format(PyExc_ValueError, "no process with pid: %ld", pid); return NULL; }
     return PyLong_FromLong(kp.kp_eproc.e_tpgid);
 }

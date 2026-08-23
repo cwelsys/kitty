@@ -17,8 +17,6 @@ mv_files_and_dirs() {
 
 compile_terminfo() {
     tname="${KITTY_SSH_KITTEN_TERMINFO_DIR:-.terminfo}"
-    # kitty.terminfo is always extracted under the configured dir; remember it
-    # because tname is reassigned to .terminfo.cdb on NetBSD below.
     source_tname="$tname"
     # Ensure the 78 dir is present
     if [ ! -f "$1/$tname/78/xterm-kitty" ]; then
@@ -34,8 +32,6 @@ compile_terminfo() {
             /usr/pkg/bin/tic -x -o "$1/$tname" "$1/$tname/kitty.terminfo" 2>/dev/null
         fi
         if [ ! -e "$1/$tname/x/xterm-kitty" ]; then
-            # Absolute target so the link is correct regardless of how many path
-            # components $tname has (e.g. an XDG .local/share/terminfo dir).
             command ln -sf "$HOME/.terminfo.cdb" "$1/$tname/x/xterm-kitty"
         fi
         tname=".terminfo.cdb"
@@ -203,8 +199,6 @@ prepare_for_exec() {
         printf "\r\033[K" > /dev/tty
     fi
     [ -f "$HOME/${KITTY_SSH_KITTEN_TERMINFO_DIR:-.terminfo}/kitty.terminfo" ] || die "Incomplete extraction of ssh data"
-    # This is the last use of the var; unset it like the other bootstrap vars so
-    # it does not leak into the user's shell environment.
     unset KITTY_SSH_KITTEN_TERMINFO_DIR
     install_kitty_bootstrap
 

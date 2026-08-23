@@ -655,9 +655,6 @@ class ForceWindowLaunch:
 
 force_window_launch = ForceWindowLaunch()
 non_window_launch_types = 'background', 'clipboard', 'primary'
-# Overlays are transient UI over another window -- pagers, editors, confirmations.
-# An explicit --persist still applies to them, but persist_windows must not sweep
-# them up: a scrollback pager has no business outliving kitty.
 auto_persist_excluded_types = non_window_launch_types + ('overlay', 'overlay-main')
 
 
@@ -824,8 +821,6 @@ def _launch(
     persist_owned = False
     explicit_persist = bool(opts.persist or opts.persist_name)
     if explicit_persist and opts.type in non_window_launch_types:
-        # No window is created, so there is nowhere to record zmx_session and the
-        # session could never be reaped. Refuse rather than leak one per launch.
         log_error(f'kitty: ignoring --persist for --type={opts.type}, which creates no window')
         explicit_persist = False
     want_persist = explicit_persist or (get_options().persist_windows and opts.type not in auto_persist_excluded_types)

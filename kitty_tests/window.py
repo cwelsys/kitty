@@ -9,8 +9,6 @@ from .base import BaseTest
 
 
 def make_title_window():
-    # A bare Window exercising only the title-layer state machine; the
-    # side-effecting notifiers are stubbed so the pure title logic is testable.
     w = Window.__new__(Window)
     w.default_title = 'default'
     w.child_title = w.default_title
@@ -26,17 +24,13 @@ def make_title_window():
 
 class TestWindowTitle(BaseTest):
     def test_title_stack_restore_clears_stale_program_title(self):
-        # Regression: a program that saves the title (CSI 22), changes it, then
-        # restores it (CSI 23) must end up showing the restored title. The pop
-        # restores child_title but the program_title layer (preferred in the
-        # title chain) must be re-derived, else the pre-restore title persists.
         w = make_title_window()
-        w.title_changed(memoryview(b'vim'))  # program sets OSC 2 title
+        w.title_changed(memoryview(b'vim'))
         self.ae(w.title, 'vim')
-        w.manipulate_title_stack(pop=False, title='x', icon=None)  # CSI 22 push
-        w.title_changed(memoryview(b'vim - README'))  # title changes while saved
+        w.manipulate_title_stack(pop=False, title='x', icon=None)
+        w.title_changed(memoryview(b'vim - README'))
         self.ae(w.title, 'vim - README')
-        w.manipulate_title_stack(pop=True, title='x', icon=None)  # CSI 23 pop
+        w.manipulate_title_stack(pop=True, title='x', icon=None)
         self.ae(w.title, 'vim')
 
     def test_title_chain_priority(self):
@@ -44,6 +38,6 @@ class TestWindowTitle(BaseTest):
         w.shell_title = 'shell'
         self.ae(w.title, 'shell')
         w.program_title = 'prog'
-        self.ae(w.title, 'prog')  # program over shell
+        self.ae(w.title, 'prog')
         w.override_title = 'override'
-        self.ae(w.title, 'override')  # override wins all
+        self.ae(w.title, 'override')

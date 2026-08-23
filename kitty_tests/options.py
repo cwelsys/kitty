@@ -460,7 +460,6 @@ def conf_parsing(self):
     self.ae(opts.foreground, to_color('red'))
     self.ae(opts.background, to_color('red'))
 
-    # tab bar zones options
     opts = p('tab_bar_zone_left cwd_git', 'tab_bar_zone_right tab_label title')
     self.ae(opts.tab_bar_zone_left, ('cwd_git',))
     self.ae(opts.tab_bar_zone_right, ('tab_label', 'title'))
@@ -468,26 +467,23 @@ def conf_parsing(self):
     self.ae(opts.tab_bar_sticky_last_cmd, True)
     self.ae(opts.tab_bar_content_separator, ' · ')
     self.ae(opts.tab_bar_ellipsis, '…')
-    opts = p('tab_bar_zone_right xxx', num_err=1)  # invalid content kind warns
+    opts = p('tab_bar_zone_right xxx', num_err=1)
     self.ae(opts.tab_bar_zone_right, ())
 
-    # tab_bar_icon repeatable dict option
     opts = p('tab_bar_icon nvim X', 'tab_bar_icon lazygit Y')
     self.ae(opts.tab_bar_icon, {'nvim': 'X', 'lazygit': 'Y'})
-    opts = p('tab_bar_icon onlyname', bad_line_num=1)  # missing glyph -> bad line
+    opts = p('tab_bar_icon onlyname', bad_line_num=1)
 
-    # tab_bar_git_status repeatable dict option
     opts = p('tab_bar_git_status modified ! #f9e2af', 'tab_bar_git_status ahead ⇡ #a6e3a1')
     self.ae(opts.tab_bar_git_status['modified'], ('!', Color(249, 226, 175)))
     self.ae(opts.tab_bar_git_status['ahead'], ('⇡', Color(166, 227, 161)))
     opts = p('tab_bar_git_status bogusfield ! #fff', bad_line_num=1)
 
-    # tab_bar zone text + mode indicator color options
     opts = p('tab_bar_zone_text_fg #cdd6f4', 'tab_bar_mode_bg #fab387', 'tab_bar_mode_name leader 󰌌')
     self.ae(opts.tab_bar_zone_text_fg, Color(205, 214, 244))
     self.ae(opts.tab_bar_mode_bg, Color(250, 179, 135))
     self.ae(opts.tab_bar_mode_name, {'leader': '󰌌'})
-    opts = p('tab_bar_mode_name onlymode', bad_line_num=1)  # missing display -> bad line
+    opts = p('tab_bar_mode_name onlymode', bad_line_num=1)
 
     # remap_modifier. NOTE: parsing only. Whether the permutation is applied
     # simultaneously rather than sequentially is a property of

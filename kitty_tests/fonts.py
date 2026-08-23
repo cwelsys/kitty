@@ -422,16 +422,6 @@ class Rendering(FontBaseTest):
         self.assertGreater(mh, 0.5 * rh, f'color emoji shrunk by FC_MATRIX: {mh}px vs {rh}px (#10144)')
 
     def test_pua_ligature_ink_is_centered(self):
-        # A PUA glyph followed by a space renders as a multi-cell ligature.
-        # Alignment centers the glyph's *advance* in that span, but Nerd Font
-        # icons routinely draw ink wider than their advance and overhang it to
-        # the right, so centering the advance leaves the visible icon off
-        # center by half the overhang — and by a different amount per glyph.
-        # The ink is what the eye sees, so the ink is what has to be centered.
-        # Centering by advance also shifts wide icons off the right edge of the
-        # canvas, where the excess ink is clipped away, so the rendered glyph
-        # must be checked for lost pixels as well as for symmetry: clipped ink
-        # centers just as symmetrically as intact ink.
         keys = sorted(k for k in all_fonts_map(True)['family_map'] if 'nerd font' in k)
         if not keys:
             self.skipTest('no Nerd Font installed to supply multi-cell PUA icons')
@@ -445,7 +435,7 @@ class Rendering(FontBaseTest):
             width = cell_w * len(cells)
             cols = [x for x in range(width) if any(cells[x // cell_w][(y * cell_w + x % cell_w) * 4 + 3] for y in range(cell_h))]
             if len(cells) < 2 or not cols or cols[-1] < cell_w:
-                continue  # narrow enough to render in one cell: no ligature to center
+                continue
             left, right = cols[0], width - 1 - cols[-1]
             tested.append(cp)
             _, unclipped, _ = face.render_codepoint(cp)

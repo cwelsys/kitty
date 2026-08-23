@@ -26,12 +26,10 @@ def find_git_dir(cwd: str) -> Path | None:
                 content = git_path.read_text().strip()
                 if content.startswith('gitdir:'):
                     result = Path(content[7:].strip())
-                    if not result.is_absolute():  # submodules use a relative pointer
+                    if not result.is_absolute():
                         result = (parent / result).resolve()
                     _git_dir_cache[cwd] = result
                     return result
-        # Don't cache a non-repo cwd: it's cheap to re-probe and caching None
-        # would hide a later `git init` until the cache cap clears.
         return None
     except Exception:
         return None
@@ -105,7 +103,7 @@ def parse_git_output(raw: str) -> tuple[str, dict[str, int]]:
                     elif xy[0] not in ('.', '?'):
                         counts['staged'] += 1
                     if xy[1] == 'D':
-                        if xy[0] != 'D':  # don't double-count a fully-deleted file
+                        if xy[0] != 'D':
                             counts['deleted'] += 1
                     elif xy[1] not in ('.', '?'):
                         counts['modified'] += 1

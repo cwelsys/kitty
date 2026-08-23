@@ -774,7 +774,6 @@ class Window:
         self.override_title = override_title
         self.default_title = os.path.basename(child.argv[0] or appname)
         self.child_title = self.default_title
-        # Title layers: program (OSC 2 from app) > shell (preexec command)
         self.program_title: str = ''
         self.shell_title: str = ''
         self.title_stack: Deque[str] = deque(maxlen=10)
@@ -1335,8 +1334,6 @@ class Window:
 
     def set_shell_title(self, title: str) -> None:
         self.shell_title = title
-        # When shell signals idle (precmd), clear program and child layers
-        # since the foreground process that set them has exited
         if not title:
             self.program_title = ''
             self.child_title = ''
@@ -1344,7 +1341,6 @@ class Window:
 
     def set_user_var(self, key: str, val: str | bytes | None) -> None:
         key = sanitize_control_codes(key).replace('\n', ' ')
-        # Route special uservars to title layers
         if key == 'SHELL_TITLE':
             if val is not None:
                 if isinstance(val, bytes):
@@ -1560,7 +1556,6 @@ class Window:
 
     def title_changed(self, new_title: memoryview | None, is_base64: bool = False) -> None:
         self.child_title = process_title_from_child(new_title or memoryview(b''), is_base64, self.default_title)
-        # Programs setting title via OSC 2 go to the program layer
         self.program_title = self.child_title if self.child_title != self.default_title else ''
         self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
         if self.override_title is None:
@@ -1895,8 +1890,6 @@ class Window:
             if pop:
                 if self.title_stack:
                     self.child_title = self.title_stack.pop()
-                    # Re-derive the program layer so the restored title isn't
-                    # shadowed by a stale program_title (mirrors title_changed).
                     self.program_title = self.child_title if self.child_title != self.default_title else ''
                     self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
                     self.title_updated()
@@ -2109,9 +2102,6 @@ class Window:
         return self.child.current_cwd
 
     def _foreground_is_nested_shell(self, oldest: bool = False) -> bool:
-        # True when the foreground job is an interactive shell distinct from the
-        # window's own integrated shell (e.g. sudo -s, nix develop). In that case
-        # the integrated shell's OSC-7 cwd is stale and the /proc cwd is better.
         pid = self.child.get_pid_for_cwd(oldest)
         if pid is None or pid == self.child.effective_pid:
             return False

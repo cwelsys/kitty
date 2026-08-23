@@ -8,7 +8,6 @@ from functools import lru_cache
 from .constants import shell_path
 from .utils import resolved_shell
 
-# Shells that may be used as an interactive nested shell. Basenames only.
 _STATIC_SHELLS = frozenset(
     {
         'bash',
@@ -67,7 +66,6 @@ def choose_cwd(
         return reported if local_reported else heuristic_cwd
     if mode == 'prompt_gated':
         return reported if (local_reported and at_prompt) else heuristic_cwd
-    # mode == 'current'
     if local_reported and not foreground_is_nested_shell:
         return reported
     return heuristic_cwd
