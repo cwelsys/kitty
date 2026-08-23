@@ -101,26 +101,27 @@ require_not_on_master() {
     fi
 }
 
+gofmt_generated() {
+    command -v gofmt >/dev/null 2>&1 || return 0
+    gofmt -s -w tools kittens >/dev/null 2>&1 || true
+}
+
 regen_config() {
     echo "==> Regenerating config-derived files..."
     if ! "$PYTHON" -O gen config; then
         echo "!!! WARN: 'gen config' failed (dev env missing? run ./dev.sh deps)." >&2
         return 1
     fi
+    gofmt_generated
 }
 
 conflict_banner() {
     cat <<EOF
 
 ############################################################
-## SYNC PAUSED — conflict needs resolving
 ##
 ## Conflicted files:
 $(unmerged_files | sed 's/^/##    /')
-##
-##   1) edit the source file(s) above, remove conflict markers
-##   2) git add <resolved source files>
-##   3) ./update.sh --resume
 ##
 ############################################################
 
@@ -208,6 +209,7 @@ fi
 
 echo "==> Building..."
 ./dev.sh build
+gofmt_generated
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
     echo "==> Updating terminfo..."
