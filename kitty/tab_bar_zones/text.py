@@ -46,41 +46,41 @@ def _take_width(text: str, budget: int) -> str:
     i = 0
     while i < len(text):
         chunk = text[i]
-        if _ends_with_pua(chunk) and text[i + 1:i + 2] == ' ':
-            chunk = text[i:i + 2]
+        if _ends_with_pua(chunk) and text[i + 1 : i + 2] == ' ':
+            chunk = text[i : i + 2]
         cw = display_width(chunk)
         if w + cw > budget:
             break
         out.append(chunk)
         w += cw
         i += len(chunk)
-    return "".join(out)
+    return ''.join(out)
 
 
 def abbreviate_path(cwd: str, max_len: int, home: str, ellipsis: str) -> str | None:
     if not cwd:
         return None
-    if len(cwd) > 1 and cwd.endswith("/"):
-        cwd = cwd.rstrip("/")
+    if len(cwd) > 1 and cwd.endswith('/'):
+        cwd = cwd.rstrip('/')
     if cwd.startswith(home):
-        remainder = cwd[len(home):]
-        if remainder == "" or remainder.startswith("/"):
-            cwd = "~" + remainder
+        remainder = cwd[len(home) :]
+        if remainder == '' or remainder.startswith('/'):
+            cwd = '~' + remainder
     if display_width(cwd) <= max_len:
         return cwd
-    parts = cwd.split("/")
+    parts = cwd.split('/')
     if len(parts) <= 1:
         return cwd if display_width(cwd) <= max_len else None
     abbreviated = []
     for part in parts[:-1]:
-        if part in ("~", ""):
+        if part in ('~', ''):
             abbreviated.append(part)
-        elif part.startswith("."):
+        elif part.startswith('.'):
             abbreviated.append(part[:3] if len(part) > 3 else part)
         else:
             abbreviated.append(part[:2] if len(part) > 2 else part)
     abbreviated.append(parts[-1])
-    result = "/".join(abbreviated)
+    result = '/'.join(abbreviated)
     if display_width(result) <= max_len:
         return result
     if display_width(parts[-1]) <= max_len:
@@ -93,7 +93,7 @@ def abbreviate_path(cwd: str, max_len: int, home: str, ellipsis: str) -> str | N
 def truncate_text(text: str, budget: int, ellipsis: str) -> str:
     """Truncate text to fit budget cells (end-truncation only)."""
     if budget < 1:
-        return ""
+        return ''
     ell_w = display_width(ellipsis)
     if budget <= ell_w:
         return _take_width(text, budget)

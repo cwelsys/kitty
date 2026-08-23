@@ -21,8 +21,9 @@ from .text import pad_pua_icon
 
 class TabContent(NamedTuple):
     """Content for a single tab pill, returned by the content provider."""
-    icon: str           # icon section text (e.g. "1 " or "")
-    icon_fg: int        # as_rgb color ints
+
+    icon: str  # icon section text (e.g. "1 " or "")
+    icon_fg: int  # as_rgb color ints
     icon_bg: int
     bold_icon: bool = True
 
@@ -33,6 +34,7 @@ class ZoneContent(NamedTuple):
     Zones render flat: the icon is a colored glyph on the bar background,
     followed by the content parts. No pill chrome.
     """
+
     icon: str
     parts: tuple[tuple[str, int], ...]  # (text, fg_color_int) pairs
     icon_color: int
@@ -184,6 +186,7 @@ def draw_tab_with_zones(
 
     from .content import get_engine_callables
     from .config import get_config
+
     tab_content_func, left_zone_func, right_zone_func = get_engine_callables()
     cfg = get_config()
     border_left = cfg.pill_border_left
@@ -199,9 +202,7 @@ def draw_tab_with_zones(
     except Exception:
         pass
 
-    center_tabs: list[tuple[int, TabBarData]] = [
-        (i + 1, tab) for i, tab in enumerate(tabs)
-    ]
+    center_tabs: list[tuple[int, TabBarData]] = [(i + 1, tab) for i, tab in enumerate(tabs)]
 
     center_contents: list[TabContent] = []
     for visual_idx, tab in center_tabs:
@@ -216,10 +217,7 @@ def draw_tab_with_zones(
 
     # Pills are icon+index only so widths are uniform; switching tabs never
     # reflows the bar.
-    center_widths = [
-        _pill_width(c, border_left, border_right)
-        for c in center_contents
-    ]
+    center_widths = [_pill_width(c, border_left, border_right) for c in center_contents]
 
     n_center = len(center_tabs)
     center_spacing = (n_center - 1) * spacing if n_center > 1 else 0

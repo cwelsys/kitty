@@ -580,6 +580,7 @@ def clear_caches() -> None:
     load_custom_draw_tab.clear_cached()
     load_custom_draw_tab_module.clear_cached()
     from .tab_bar_zones import clear_caches as clear_zones
+
     clear_zones()
 
 
@@ -696,6 +697,7 @@ class TabBar:
             self.draw_func = load_custom_draw_tab()
         elif ts == 'zones':
             from .tab_bar_zones import draw_tab_with_zones
+
             self._zones_draw = draw_tab_with_zones
             self.draw_func = draw_tab_with_fade
         else:

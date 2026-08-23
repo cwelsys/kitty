@@ -9,6 +9,7 @@ Ported from the config-side tab_bar.py. Provides:
   - resolve_title()       : title precedence + sticky logic (exposed for testing)
   - clear_caches()        : reset sticky-title cache
 """
+
 from __future__ import annotations
 import os
 from functools import lru_cache
@@ -70,6 +71,7 @@ Parts = tuple[tuple[str, int], ...]
 
 class ZoneSpec(NamedTuple):
     """Per-zone rendering spec, built from ZonesConfig at dispatch time."""
+
     content: tuple[str, ...]
     icon: str
     ssh_icon: str
@@ -114,9 +116,16 @@ def clear_caches() -> None:
 
 # Interpreters whose argv[1:] names the real program (node /path/claude).
 _INTERPRETERS = {
-    'node', 'bun', 'deno',
-    'python', 'python2', 'python3',
-    'ruby', 'perl', 'lua', 'luajit',
+    'node',
+    'bun',
+    'deno',
+    'python',
+    'python2',
+    'python3',
+    'ruby',
+    'perl',
+    'lua',
+    'luajit',
 }
 
 
@@ -149,6 +158,7 @@ def _default_shell_name() -> str:
     """
     try:
         from ..utils import resolved_shell
+
         return os.path.basename(resolved_shell()[0]).lstrip('-')
     except Exception:
         return ''
@@ -167,6 +177,7 @@ def _proc_name(p: dict) -> tuple[str, list[str]]:
     if pid:
         try:
             from ..child import abspath_of_exe
+
             return os.path.basename(abspath_of_exe(pid)), []
         except Exception:
             pass
@@ -308,6 +319,7 @@ def get_foreground_process(tab_id: int) -> tuple[str, str, str | None]:
 # Keyboard mode
 # ---------------------------------------------------------------------------
 
+
 def get_keyboard_mode() -> str:
     try:
         mode = get_boss().mappings.current_keyboard_mode_name
@@ -319,6 +331,7 @@ def get_keyboard_mode() -> str:
 # ---------------------------------------------------------------------------
 # tab_content: per-tab pill content
 # ---------------------------------------------------------------------------
+
 
 def tab_content(
     tab: TabBarData,
@@ -441,9 +454,7 @@ def _render_cwd_git(
 
         cwd_text = abbreviate_path(cwd, text_budget - full_len - 1, _HOME, cfg.ellipsis)
         if cwd_text and display_width(cwd_text) + 1 + full_len <= text_budget:
-            parts: list[tuple[str, int]] = [
-                (cwd_text + ' ', resolver.to_int(opts.tab_bar_git_directory_color))
-            ]
+            parts: list[tuple[str, int]] = [(cwd_text + ' ', resolver.to_int(opts.tab_bar_git_directory_color))]
             parts.extend(full)
             return tuple(parts)
         if full_len <= text_budget:
@@ -502,9 +513,7 @@ def _render_tab_label(
     opts,
 ) -> Parts | None:
     """User-set tab name (Tab.name, set by set_tab_title)."""
-    return _render_text_parts(
-        zone_cfg, active_tab.tab_name or '', text_budget, resolver, opts
-    )
+    return _render_text_parts(zone_cfg, active_tab.tab_name or '', text_budget, resolver, opts)
 
 
 _RENDERERS = {
@@ -519,6 +528,7 @@ _RENDERERS = {
 # ---------------------------------------------------------------------------
 # Zone dispatch
 # ---------------------------------------------------------------------------
+
 
 def _dispatch_zone_content(
     zone_cfg: ZoneSpec,
@@ -617,6 +627,7 @@ def _dispatch_zone_content(
 # Public zone entry-points
 # ---------------------------------------------------------------------------
 
+
 def left_zone_content(
     active_tab: TabBarData,
     draw_data: DrawData,
@@ -660,6 +671,7 @@ def get_engine_callables() -> tuple[Callable[..., TabContent], Callable[..., Zon
 # Git formatting
 # ---------------------------------------------------------------------------
 
+
 def _format_git_parts(
     branch: str,
     counts: dict[str, int],
@@ -672,9 +684,7 @@ def _format_git_parts(
 
     branch_icon_glyph = opts.tab_bar_git_branch_icon
     if branch_icon_glyph:
-        parts.append(
-            (pad_pua_icon(branch_icon_glyph) + ' ', resolver.to_int(opts.tab_bar_git_branch_icon_color))
-        )
+        parts.append((pad_pua_icon(branch_icon_glyph) + ' ', resolver.to_int(opts.tab_bar_git_branch_icon_color)))
     parts.append((branch, resolver.to_int(opts.tab_bar_git_branch_color)))
 
     if branch_only:

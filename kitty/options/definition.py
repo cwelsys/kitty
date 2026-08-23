@@ -2147,67 +2147,65 @@ The alignment of the tab bar, can be one of: :code:`start`, :code:`center`,
 """,
 )
 
-opt('tab_bar_zone_left', 'cwd_git', option_type='tab_bar_zone',
+opt(
+    'tab_bar_zone_left',
+    'cwd_git',
+    option_type='tab_bar_zone',
     long_text='Ordered content kinds for the left tab-bar zone (zones style). '
-              'Space-separated; known kinds: cwd, git, cwd_git, title, tab_label. Empty disables the zone.')
-opt('tab_bar_zone_right', '', option_type='tab_bar_zone',
-    long_text='Ordered content kinds for the right tab-bar zone (zones style).')
-opt('tab_bar_left_mode_indicator', 'no', option_type='to_bool',
-    long_text='Show the keyboard-mode indicator in the left zone.')
-opt('tab_bar_left_min_text_budget', '4', option_type='positive_int',
-    long_text='Minimum text cells required before the left zone renders text.')
-opt('tab_bar_right_min_text_budget', '4', option_type='positive_int',
-    long_text='Minimum text cells required before the right zone renders text.')
-opt('tab_bar_sticky_last_cmd', 'no', option_type='to_bool',
-    long_text='Keep showing the last command title in the title zone when the shell goes idle.')
-opt('tab_bar_content_separator', '" · "', option_type='tab_bar_content_separator',
-    long_text='Separator string between multiple content kinds in a zone.')
-opt('tab_bar_ellipsis', '…', option_type='tab_bar_content_separator',
-    long_text='Ellipsis string used when truncating zone text.')
-opt('tab_bar_pill_border_left', '', option_type='tab_bar_content_separator',
-    long_text='Left border glyph of a tab pill.')
-opt('tab_bar_pill_border_right', '', option_type='tab_bar_content_separator',
-    long_text='Right border glyph of a tab pill.')
-opt('tab_bar_pill_separator', '', option_type='tab_bar_content_separator',
-    long_text='Separator glyph between a pill icon and text.')
-opt('tab_bar_pill_spacing', '1', option_type='positive_int',
-    long_text='Cells of spacing between center tab pills.')
+    'Space-separated; known kinds: cwd, git, cwd_git, title, tab_label. Empty disables the zone.',
+)
+opt('tab_bar_zone_right', '', option_type='tab_bar_zone', long_text='Ordered content kinds for the right tab-bar zone (zones style).')
+opt('tab_bar_left_mode_indicator', 'no', option_type='to_bool', long_text='Show the keyboard-mode indicator in the left zone.')
+opt('tab_bar_left_min_text_budget', '4', option_type='positive_int', long_text='Minimum text cells required before the left zone renders text.')
+opt('tab_bar_right_min_text_budget', '4', option_type='positive_int', long_text='Minimum text cells required before the right zone renders text.')
+opt('tab_bar_sticky_last_cmd', 'no', option_type='to_bool', long_text='Keep showing the last command title in the title zone when the shell goes idle.')
+opt('tab_bar_content_separator', '" · "', option_type='tab_bar_content_separator', long_text='Separator string between multiple content kinds in a zone.')
+opt('tab_bar_ellipsis', '…', option_type='tab_bar_content_separator', long_text='Ellipsis string used when truncating zone text.')
+opt('tab_bar_pill_border_left', '', option_type='tab_bar_content_separator', long_text='Left border glyph of a tab pill.')
+opt('tab_bar_pill_border_right', '', option_type='tab_bar_content_separator', long_text='Right border glyph of a tab pill.')
+opt('tab_bar_pill_separator', '', option_type='tab_bar_content_separator', long_text='Separator glyph between a pill icon and text.')
+opt('tab_bar_pill_spacing', '1', option_type='positive_int', long_text='Cells of spacing between center tab pills.')
 opt('tab_bar_left_icon', '', option_type='tab_bar_content_separator', long_text='Left zone icon glyph.')
 opt('tab_bar_left_ssh_icon', '', option_type='tab_bar_content_separator', long_text='Left zone icon glyph over SSH.')
 opt('tab_bar_right_icon', '', option_type='tab_bar_content_separator', long_text='Right zone icon glyph.')
 opt('tab_bar_right_ssh_icon', '', option_type='tab_bar_content_separator', long_text='Right zone icon glyph over SSH.')
-opt('tab_bar_icon_elements', 'index icon', option_type='tab_bar_icon_elements',
-    long_text='Order of pill icon elements: index and/or icon.')
+opt('tab_bar_icon_elements', 'index icon', option_type='tab_bar_icon_elements', long_text='Order of pill icon elements: index and/or icon.')
 
-opt('+tab_bar_icon', 'kitty 󰄛', option_type='tab_bar_icon', add_to_default=False,
+opt(
+    '+tab_bar_icon',
+    'kitty 󰄛',
+    option_type='tab_bar_icon',
+    add_to_default=False,
     long_text='Override or add a tab icon for a foreground executable name. '
-              'Repeatable: tab_bar_icon <exe-name> <glyph>. The tab-bar engine ships built-in '
-              'icons for common tools; this option overrides or adds entries.')
+    'Repeatable: tab_bar_icon <exe-name> <glyph>. The tab-bar engine ships built-in '
+    'icons for common tools; this option overrides or adds entries.',
+)
 
-opt('+tab_bar_git_status', 'modified ! #f9e2af', option_type='tab_bar_git_status', add_to_default=False,
+opt(
+    '+tab_bar_git_status',
+    'modified ! #f9e2af',
+    option_type='tab_bar_git_status',
+    add_to_default=False,
     long_text='Git status glyph + color per field. Repeatable: tab_bar_git_status <field> <glyph> <color>. '
-              'Fields: stashed deleted staged modified renamed untracked conflicted ahead behind.')
-opt('tab_bar_git_branch_icon', 'none', option_type='tab_activity_symbol',
-    long_text='Glyph shown before the git branch name (none for no icon).')
-opt('tab_bar_git_branch_color', '#cba6f7', option_type='to_color',
-    long_text='Color of the git branch name.')
-opt('tab_bar_git_branch_icon_color', '#9399b2', option_type='to_color',
-    long_text='Color of the git branch icon.')
-opt('tab_bar_git_directory_color', '#cdd6f4', option_type='to_color',
-    long_text='Color of the working-directory text.')
+    'Fields: stashed deleted staged modified renamed untracked conflicted ahead behind.',
+)
+opt('tab_bar_git_branch_icon', 'none', option_type='tab_activity_symbol', long_text='Glyph shown before the git branch name (none for no icon).')
+opt('tab_bar_git_branch_color', '#cba6f7', option_type='to_color', long_text='Color of the git branch name.')
+opt('tab_bar_git_branch_icon_color', '#9399b2', option_type='to_color', long_text='Color of the git branch icon.')
+opt('tab_bar_git_directory_color', '#cdd6f4', option_type='to_color', long_text='Color of the working-directory text.')
 
-opt('tab_bar_zone_text_bg', 'none', option_type='to_color_or_none',
-    long_text='Background of zone text sections (none = use inactive_tab_background).')
-opt('tab_bar_zone_text_fg', 'none', option_type='to_color_or_none',
-    long_text='Foreground of zone text sections (none = use foreground).')
-opt('tab_bar_mode_bg', 'none', option_type='to_color_or_none',
-    long_text='Background of the keyboard-mode indicator (none = use active_tab_background).')
-opt('tab_bar_mode_fg', 'none', option_type='to_color_or_none',
-    long_text='Foreground of the keyboard-mode indicator (none = use active_tab_foreground).')
-opt('tab_bar_mode_indicator', 'yes', option_type='to_bool',
-    long_text='Enable the keyboard-mode indicator entirely.')
-opt('+tab_bar_mode_name', 'leader 󰌌', option_type='tab_bar_mode_name', add_to_default=False,
-    long_text='Display name/glyph for a keyboard mode. Repeatable: tab_bar_mode_name <mode> <display>.')
+opt('tab_bar_zone_text_bg', 'none', option_type='to_color_or_none', long_text='Background of zone text sections (none = use inactive_tab_background).')
+opt('tab_bar_zone_text_fg', 'none', option_type='to_color_or_none', long_text='Foreground of zone text sections (none = use foreground).')
+opt('tab_bar_mode_bg', 'none', option_type='to_color_or_none', long_text='Background of the keyboard-mode indicator (none = use active_tab_background).')
+opt('tab_bar_mode_fg', 'none', option_type='to_color_or_none', long_text='Foreground of the keyboard-mode indicator (none = use active_tab_foreground).')
+opt('tab_bar_mode_indicator', 'yes', option_type='to_bool', long_text='Enable the keyboard-mode indicator entirely.')
+opt(
+    '+tab_bar_mode_name',
+    'leader 󰌌',
+    option_type='tab_bar_mode_name',
+    add_to_default=False,
+    long_text='Display name/glyph for a keyboard mode. Repeatable: tab_bar_mode_name <mode> <display>.',
+)
 
 opt(
     'tab_bar_show_new_tab_button',

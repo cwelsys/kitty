@@ -164,8 +164,7 @@ def compile_terminfo(base):
         tname = '.terminfo.cdb'
     os.environ['TERMINFO'] = os.path.join(HOME, tname)
     p = subprocess.Popen(
-        [tic, '-x', '-o', os.path.join(base, tname), os.path.join(base, source_tname, 'kitty.terminfo')],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        [tic, '-x', '-o', os.path.join(base, tname), os.path.join(base, source_tname, 'kitty.terminfo')], stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     output = p.stdout.read()
     rc = p.wait()

@@ -10,8 +10,7 @@ class ColorResolver:
     to an as_rgb int. The 5 sentinel strings follow the live theme via DrawData.
     """
 
-    def __init__(self, active_fg: Color, active_bg: Color, inactive_fg: Color,
-                 inactive_bg: Color, default_bg: Color) -> None:
+    def __init__(self, active_fg: Color, active_bg: Color, inactive_fg: Color, inactive_bg: Color, default_bg: Color) -> None:
         self._theme = {
             'active_tab_foreground': as_rgb(color_as_int(active_fg)),
             'active_tab_background': as_rgb(color_as_int(active_bg)),
@@ -26,7 +25,7 @@ class ColorResolver:
 
     def to_int(self, color: 'Color | str | None') -> int:
         if isinstance(color, str):
-            return self._theme.get(color, as_rgb(0xcccccc))
+            return self._theme.get(color, as_rgb(0xCCCCCC))
         if color is None:
-            return as_rgb(0xcccccc)
+            return as_rgb(0xCCCCCC)
         return as_rgb(color_as_int(color))  # Color
