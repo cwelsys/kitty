@@ -800,8 +800,6 @@ class TabBar:
             self.os_window_id,
         )
         ts = opts.tab_bar_style
-        # Reset on every apply_options() so a live config reload away from
-        # the zones style actually leaves it.
         self._zones_draw: Callable[[DrawData, Screen, Sequence[TabBarData]], list[TabExtent]] | None = None
         if ts == 'separator':
             self.draw_func: DrawTabFunc = draw_tab_with_separator
@@ -995,11 +993,8 @@ class TabBar:
         s = self.screen
         self.last_laid_out_tabs = data
 
-        # Zones style: bypass per-tab loop entirely
         if self._zones_draw is not None:
             s.cursor.x = 0
-            # erase_in_line fills with the current cursor bg (BCE), so reset
-            # colors left over from the previous frame's last drawn cell.
             s.cursor.bg = s.cursor.fg = 0
             s.cursor.bold = s.cursor.italic = False
             s.erase_in_line(2, False)

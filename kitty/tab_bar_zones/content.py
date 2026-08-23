@@ -24,10 +24,6 @@ from .text import abbreviate_path, truncate_text, display_width, pad_pua_icon
 from . import gitstatus
 
 
-# ---------------------------------------------------------------------------
-# Module-level constants
-# ---------------------------------------------------------------------------
-
 _HOME = os.path.expanduser('~')
 
 _SHELLS = {
@@ -48,7 +44,6 @@ _SHELLS = {
     '-sh',
 }
 
-# Order matters: matches the source tabbar_config._GIT_STATUS_FIELDS
 _GIT_STATUS_FIELDS: tuple[str, ...] = (
     'stashed',
     'deleted',
@@ -62,10 +57,6 @@ _GIT_STATUS_FIELDS: tuple[str, ...] = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
 Parts = tuple[tuple[str, int], ...]
 
 
@@ -78,10 +69,6 @@ class ZoneSpec(NamedTuple):
     min_text_budget: int
     show_mode_indicator: bool
 
-
-# ---------------------------------------------------------------------------
-# Sticky-title cache
-# ---------------------------------------------------------------------------
 
 _last_titles: dict[int, str] = {}
 _LAST_TITLES_MAX = 50
@@ -110,11 +97,6 @@ def clear_caches() -> None:
     _default_shell_name.cache_clear()
 
 
-# ---------------------------------------------------------------------------
-# Process detection
-# ---------------------------------------------------------------------------
-
-# Interpreters whose argv[1:] names the real program (node /path/claude).
 _INTERPRETERS = {
     'node',
     'bun',
@@ -129,12 +111,6 @@ _INTERPRETERS = {
 }
 
 
-# Session-persistence wrappers that run their child under a detached daemon on
-# another pty, leaving only the client process visible on kitty's own pty.
-# Windows kitty persisted itself are handled in Child, which resolves the
-# session's real pid and reports its process group -- so reaching here means a
-# wrapper kitty did not start, i.e. the user ran `zmx attach` by hand, or the
-# session could not be resolved. Both are best served by reading the argv.
 _SESSION_WRAPPERS = {'zmx'}
 
 
@@ -206,11 +182,6 @@ def _icon_exe_candidates(procs: 'list[dict]', pgrp: int, proc_var: str | None) -
         name, cmdline = _proc_name(leader)
         wrapped = _unwrap_session_cmdline(name, cmdline)
         if wrapped is not None:
-            # Nothing the wrapped shell forks is visible here, so PROC -- the
-            # weakest signal everywhere else -- is the only live view and leads.
-            # The wrapped argv names whatever kitty asked the session to run
-            # (usually the shell), which is the right answer once PROC clears at
-            # the next prompt.
             candidates = [proc_var] if proc_var and proc_var not in _SHELLS else []
             inner = os.path.basename(wrapped[0]).lstrip('-') if wrapped and wrapped[0] else _default_shell_name()
             if inner:
@@ -261,9 +232,6 @@ def get_foreground_process(tab_id: int) -> tuple[str, str, str | None]:
     """Return (exe, cwd, remote_host) for the tab's foreground process."""
     try:
         ta = TabAccessor(tab_id)
-        # active_exe is the exe the window was *launched* with (usually the
-        # shell) -- only a fallback. The live foreground process below is
-        # what should drive the icon.
         exe = ta.active_exe or 'zsh'
         cwd = ta.active_wd or ''
 
@@ -280,17 +248,11 @@ def get_foreground_process(tab_id: int) -> tuple[str, str, str | None]:
                     cwd = remote_cwd
                 proc = user_vars.get('PROC')
                 if remote_host:
-                    # Remote session: the local foreground process is just
-                    # ssh; the remote shell integration's PROC report is the
-                    # only view of the real process.
                     if proc and proc not in _SHELLS:
                         exe = proc
                 elif proc and proc in get_config().icon_overrides:
-                    # An explicit tab_bar_icon mapping for the typed word
-                    # (e.g. `tab_bar_icon lg ...`) beats process detection.
                     exe = proc
                 else:
-                    # Local: resolve from the live foreground process group.
                     try:
                         procs = window.child.foreground_processes
                     except Exception:
@@ -315,22 +277,12 @@ def get_foreground_process(tab_id: int) -> tuple[str, str, str | None]:
         return ('zsh', '', None)
 
 
-# ---------------------------------------------------------------------------
-# Keyboard mode
-# ---------------------------------------------------------------------------
-
-
 def get_keyboard_mode() -> str:
     try:
         mode = get_boss().mappings.current_keyboard_mode_name
         return mode if mode else ''
     except Exception:
         return ''
-
-
-# ---------------------------------------------------------------------------
-# tab_content: per-tab pill content
-# ---------------------------------------------------------------------------
 
 
 def tab_content(
@@ -346,8 +298,6 @@ def tab_content(
     exe, _cwd, _hostname = get_foreground_process(tab.tab_id)
     icon_str = cfg.icon_for(exe)
 
-    # No PUA padding here: _pill_cells pairs the icon with its pad space when
-    # it lays the pill out, and double-padding would widen every pill.
     icon_parts = []
     for element in cfg.icon_elements:
         if element == 'index':
@@ -368,15 +318,6 @@ def tab_content(
         icon_fg=icon_fg,
         icon_bg=icon_bg,
     )
-
-
-# ---------------------------------------------------------------------------
-# Content-kind renderers
-# ---------------------------------------------------------------------------
-# Each renderer returns a tuple of (text, color_int) parts, or None.
-# Zone dispatch owns icon resolution, mode-color shift, SSH override,
-# chrome overhead, composition, and foreground-process resolution: proc is
-# the (exe, cwd, hostname) tuple resolved once per zone.
 
 
 def _render_cwd(
@@ -525,11 +466,6 @@ _RENDERERS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Zone dispatch
-# ---------------------------------------------------------------------------
-
-
 def _dispatch_zone_content(
     zone_cfg: ZoneSpec,
     active_tab: TabBarData,
@@ -568,8 +504,6 @@ def _dispatch_zone_content(
         icon = zone_cfg.icon
     icon = pad_pua_icon(icon)
 
-    # Zones are flat: the icon is a colored glyph on the bar background.
-    # The mode indicator recolors it via tab_bar_mode_bg.
     if mode_active and opts.tab_bar_mode_bg is not None:
         icon_color = resolver.to_int(opts.tab_bar_mode_bg)
     else:
@@ -578,8 +512,6 @@ def _dispatch_zone_content(
     text_fg_raw = opts.tab_bar_zone_text_fg if opts.tab_bar_zone_text_fg is not None else opts.foreground
     text_fg = resolver.to_int(text_fg_raw)
 
-    # Fixed zone overhead: the icon plus one pad cell before the content
-    # (nothing when the zone has no icon).
     overhead = display_width(icon) + 1 if icon else 0
     text_budget = max_width - overhead
     if text_budget < zone_cfg.min_text_budget:
@@ -623,11 +555,6 @@ def _dispatch_zone_content(
     )
 
 
-# ---------------------------------------------------------------------------
-# Public zone entry-points
-# ---------------------------------------------------------------------------
-
-
 def left_zone_content(
     active_tab: TabBarData,
     draw_data: DrawData,
@@ -665,11 +592,6 @@ def right_zone_content(
 def get_engine_callables() -> tuple[Callable[..., TabContent], Callable[..., ZoneContent | None], Callable[..., ZoneContent | None]]:
     """Return (tab_content, left_zone_content, right_zone_content)."""
     return (tab_content, left_zone_content, right_zone_content)
-
-
-# ---------------------------------------------------------------------------
-# Git formatting
-# ---------------------------------------------------------------------------
 
 
 def _format_git_parts(

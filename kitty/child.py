@@ -122,10 +122,6 @@ else:
         return os.path.realpath(f'/proc/{pid}/exe', strict=True)
 
     def tty_foreground_process_group(pid: int) -> int:
-        # Field 8 of /proc/pid/stat is tpgid, the foreground process group of
-        # this process's controlling terminal -- tcgetpgrp() for a terminal we
-        # hold no descriptor for. comm (field 2) is unquoted and may contain
-        # both spaces and parens, so fields are counted from the last ')'.
         with open(f'/proc/{pid}/stat', 'rb') as f:
             raw = f.read().decode('utf-8', 'replace')
         return int(raw.rpartition(')')[2].split()[5])

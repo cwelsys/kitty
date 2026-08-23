@@ -26,12 +26,6 @@ def files_in(path):
             yield os.path.relpath(os.path.join(record[0], f), path)
 
 
-# The zsh the bootstrap starts on the "remote" never loads shell integration
-# here, so check_bootstrap waits out its full 60s timeout and, with
-# retry_on_failure, burns two minutes to fail. Verified 2026-07-28 to reproduce
-# identically on pristine upstream master, so this is the machine or upstream,
-# not this fork -- skipped rather than diagnosed. The bash login shell still
-# covers this test's actual assertions. Flip to False to re-check.
 SKIP_ZSH_SSH_BOOTSTRAP = True
 
 
@@ -171,11 +165,9 @@ copy --exclude **/w.* --exclude **/r d1
                     SHELL_INTEGRATION_VALUE='',
                     terminfo_dir=tdir,
                 )
-                # terminfo is installed under the configured (XDG) dir, not the default ~/.terminfo
                 self.assertTrue(os.path.exists(f'{remote_home}/{tdir}/kitty.terminfo'))
                 self.assertTrue(os.path.lexists(f'{remote_home}/{tdir}/x/xterm-kitty'))
                 self.assertFalse(os.path.exists(f'{remote_home}/.terminfo/kitty.terminfo'))
-                # the bootstrap-only var must be unset before exec, not leaked into the user's shell
                 pty.wait_till(lambda: b'TERMINFO_DIR_LEAK_CHECK' in pty.received_bytes)
                 self.assertNotIn(b'KITTY_SSH_KITTEN_TERMINFO_DIR', pty.received_bytes)
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # License: GPL v3 Copyright: 2018, Kovid Goyal <kovid at kovidgoyal.net>
-# Zones tab bar style: three-zone layout with content provider.
 
 from __future__ import annotations
 
@@ -22,8 +21,8 @@ from .text import pad_pua_icon
 class TabContent(NamedTuple):
     """Content for a single tab pill, returned by the content provider."""
 
-    icon: str  # icon section text (e.g. "1 " or "")
-    icon_fg: int  # as_rgb color ints
+    icon: str
+    icon_fg: int
     icon_bg: int
     bold_icon: bool = True
 
@@ -36,7 +35,7 @@ class ZoneContent(NamedTuple):
     """
 
     icon: str
-    parts: tuple[tuple[str, int], ...]  # (text, fg_color_int) pairs
+    parts: tuple[tuple[str, int], ...]
     icon_color: int
 
 
@@ -46,8 +45,6 @@ def _display_width(s: str) -> int:
     return w if w >= 0 else len(s)
 
 
-# Cells of pill background between the two caps. Fixed, so switching tabs or
-# changing the foreground process never reflows the bar.
 PILL_BODY_CELLS = 4
 
 
@@ -105,11 +102,8 @@ def _draw_pill(screen: Screen, content: TabContent, border_left: str, border_rig
     screen.cursor.bold = False
 
 
-# Gap (in cells) between a zone and the center tab zone.
 ZONE_GAP = 2
-# Zones narrower than this are not drawn at all.
 MIN_ZONE_WIDTH = 10
-# Cells kept clear at the window edge so the corner rounding doesn't clip glyphs.
 EDGE_PAD = 1
 
 
@@ -155,7 +149,7 @@ def _draw_zone(
 
 def _zone_width(content: ZoneContent, mirrored: bool = False) -> int:
     """Calculate drawn width of a flat zone: icon + pad + parts."""
-    del mirrored  # widths match for both layouts
+    del mirrored
     icon_width = _display_width(content.icon)
     text_width = sum(_display_width(text) for text, _ in content.parts)
     if icon_width and text_width:
@@ -193,7 +187,6 @@ def draw_tab_with_zones(
     border_right = cfg.pill_border_right
     spacing = cfg.pill_spacing
 
-    # Detect drag state
     is_drag = False
     try:
         boss = get_boss()
@@ -215,8 +208,6 @@ def draw_tab_with_zones(
             content = TabContent(icon=str(visual_idx), icon_fg=fg, icon_bg=bg)
         center_contents.append(content)
 
-    # Pills are icon+index only so widths are uniform; switching tabs never
-    # reflows the bar.
     center_widths = [_pill_width(c, border_left, border_right) for c in center_contents]
 
     n_center = len(center_tabs)
@@ -226,7 +217,6 @@ def draw_tab_with_zones(
     center_start = max(0, (screen.columns - center_width) // 2)
     active_tab = next((t for t in tabs if t.is_active), tabs[0])
 
-    # Draw left zone
     left_max = max(0, center_start - ZONE_GAP - EDGE_PAD)
     if left_zone_func and left_max > MIN_ZONE_WIDTH:
         try:
@@ -239,7 +229,6 @@ def draw_tab_with_zones(
             screen.cursor.x = EDGE_PAD
             _draw_zone(screen, left_content)
 
-    # Draw center zone
     tab_extents: list[TabExtent] = []
     screen.cursor.x = center_start
     last_center_tab_id: int | None = center_tabs[-1][1].tab_id if center_tabs else None
@@ -257,13 +246,11 @@ def draw_tab_with_zones(
         _draw_pill(screen, content, border_left, border_right)
         end = screen.cursor.x
 
-        # CellRange for this tab
         if is_drag and tab.tab_id == last_center_tab_id:
             tab_extents.append(TabExtent(tab.tab_id, CellRange(start, screen.columns)))
         else:
             tab_extents.append(TabExtent(tab.tab_id, CellRange(start, end)))
 
-    # Draw right zone (active-tab content from provider, e.g. title)
     center_end = center_start + center_width
     right_max = max(0, screen.columns - center_end - ZONE_GAP - EDGE_PAD)
     if right_zone_func and right_max > MIN_ZONE_WIDTH:
@@ -275,8 +262,6 @@ def draw_tab_with_zones(
 
         if right_content is not None:
             zone_w = min(_zone_width(right_content, mirrored=True), right_max)
-            # Pin to the right edge when the zone fits; otherwise butt up
-            # against the center zone with the standard gap.
             screen.cursor.x = max(center_end + ZONE_GAP, screen.columns - EDGE_PAD - zone_w)
             _draw_zone(screen, right_content, mirrored=True)
 

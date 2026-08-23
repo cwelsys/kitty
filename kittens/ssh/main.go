@@ -261,12 +261,6 @@ func serialize_env(cd *connection_data, get_local_env func(string) (string, bool
 	return final_env_instructions(cd.script_type == "py", get_local_env, env...), ksi
 }
 
-// remote_terminfo_dir resolves the remote terminfo install directory, normalized
-// to a clean $HOME-relative path. Leading/trailing slashes are stripped so the
-// value matches between where make_tarfile places the database and where the
-// bootstrap (sh/py) looks for it; an empty value falls back to the .terminfo
-// default. Keeping this the single source of truth prevents the env var and the
-// tarball layout from ever disagreeing.
 func remote_terminfo_dir(cd *connection_data) string {
 	td := strings.Trim(cd.host_opts.Terminfo_dir, "/")
 	if td == "" {

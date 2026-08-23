@@ -1263,9 +1263,6 @@ apply_horizontal_alignment(
 
 static void
 apply_horizontal_ink_centering(pixel *canvas, unsigned canvas_width, unsigned cell_height) {
-    // Center the rendered ink horizontally in the multi-cell span, like
-    // apply_vertical_centering. Centering the advance instead leaves Nerd Font
-    // icons off center and clips those wider than their advance.
     unsigned first = canvas_width, last = 0;
     for (unsigned y = 0; y < cell_height; y++) {
         const pixel *row = canvas + (size_t)y * canvas_width;
@@ -1288,10 +1285,6 @@ apply_horizontal_ink_centering(pixel *canvas, unsigned canvas_width, unsigned ce
 
 static void
 apply_vertical_centering(pixel *canvas, unsigned canvas_width, unsigned cell_height) {
-    // Center the rendered ink vertically in the cell. Used for PUA
-    // glyph+space ligatures (Nerd Font style icons) so they align to the
-    // optical middle of the line like inline images in a word processor,
-    // instead of hanging from the text baseline.
     unsigned first = cell_height, last = 0;
     for (unsigned y = 0; y < cell_height; y++) {
         const pixel *row = canvas + (size_t)y * canvas_width;
