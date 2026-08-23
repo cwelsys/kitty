@@ -524,6 +524,51 @@ def to_modifiers(val: str) -> int:
     return parse_mods(val.split('+'), val) or 0
 
 
+def remap_modifiers(val: str) -> dict[int, int]:
+    # Only the real modifiers may be remapped. parse_mods() also accepts
+    # kitty_mod (a parse-time placeholder resolved out of keymaps before any key
+    # event exists) and the lock modifiers, neither of which can be meaningfully
+    # carried on an event, so they are rejected here rather than silently
+    # mangling events later.
+    ans = {}
+    if not val:
+        return ans
+    remappable = (
+        defines.GLFW_MOD_SHIFT | defines.GLFW_MOD_ALT | defines.GLFW_MOD_CONTROL | defines.GLFW_MOD_SUPER | defines.GLFW_MOD_HYPER | defines.GLFW_MOD_META
+    )
+
+    def bad(msg: str) -> None:
+        log_error(f'Ignoring invalid remap_modifiers "{val}": {msg}')
+
+    for token in val.split():
+        parts = token.split(':', 1)
+        if len(parts) != 2:
+            bad('must be two modifier names separated by a colon')
+            return {}
+        # parse_mods() returns None both for an unknown name (already logged) and for
+        # "none" (deliberately not logged), so check the names before trusting it
+        for part in parts:
+            for name in part.split('+'):
+                if name.upper() in ('NONE', ''):
+                    bad('none is not a modifier')
+                    return {}
+        src = parse_mods(parts[0].split('+'), val)
+        dest = parse_mods(parts[1].split('+'), val)
+        if src is None or dest is None:
+            return {}  # parse_mods() has already logged the unknown modifier name
+        if src & ~remappable or dest & ~remappable:
+            bad('only shift, alt, ctrl, super, hyper and meta can be remapped')
+            return {}
+        if src & (src - 1):
+            bad('the source must name exactly one modifier')
+            return {}
+        if src == dest:
+            bad('the source and destination are the same')
+            return {}
+        ans[src] = dest
+    return ans
+
+
 def parse_shortcut(sc: str) -> SingleKey:
     if sc.endswith('+') and len(sc) > 1:
         sc = f'{sc[:-1]}plus'
@@ -872,6 +917,16 @@ def active_tab_title_template(x: str) -> str | None:
     return None if x == 'none' else x
 
 
+def tab_title_wrap(x: str) -> int:
+    """no/0 -> 0 (disabled), yes -> -1 (wrap at the tab bar width), N -> wrap at N cells"""
+    x = x.lower()
+    if x in ('n', 'no', 'false', 'none'):
+        return 0
+    if to_bool(x):
+        return -1
+    return positive_int(x)
+
+
 def text_fg_override_threshold(x: str) -> tuple[float, Literal['%', 'ratio']]:
     val, unit = number_with_unit(x, '%', 'ratio')
     return val, cast(Literal['%', 'ratio'], unit)
@@ -936,11 +991,11 @@ def background_images(x: str) -> tuple[str, ...]:
     return tuple(x for x in sorted(glob(x)) if x.rpartition('.')[-1].lower() in ('jpeg', 'jpg', 'png', 'webp', 'tif', 'tiff', 'bmp', 'gif')) or (x,)
 
 
-def filter_notification(val: str, current_val: dict[str, str]) -> Iterable[tuple[str, str]]:
+def filter_notification(val: str, current_val: dict[str, str]) -> Iterator[tuple[str, str]]:
     yield val, ''
 
 
-def remote_control_password(val: str, current_val: dict[str, str]) -> Iterable[tuple[str, Sequence[str]]]:
+def remote_control_password(val: str, current_val: dict[str, str]) -> Iterator[tuple[str, Sequence[str]]]:
     val = val.strip()
     if val:
         parts = to_cmdline(val, expand=False)
@@ -956,6 +1011,10 @@ def remote_control_password(val: str, current_val: dict[str, str]) -> Iterable[t
 
 def clipboard_control(x: str) -> tuple[str, ...]:
     return tuple(x.lower().split())
+
+
+def custom_shaders(x: str) -> tuple[str, ...]:
+    return tuple(shlex_split(x)) if x else ()
 
 
 def allow_hyperlinks(x: str) -> int:

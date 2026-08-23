@@ -10,7 +10,6 @@ from collections.abc import Generator, Sequence
 from contextlib import contextmanager, suppress
 from gettext import gettext as _
 
-from .borders import load_borders_program
 from .boss import Boss
 from .child import set_default_env, set_LANG_in_default_env
 from .cli import create_opts, parse_args
@@ -59,7 +58,7 @@ from .options.types import Options
 from .options.utils import DELETE_ENV_VAR
 from .os_window_size import edge_spacing, initial_window_size_func
 from .session import create_sessions, get_os_window_sizing_data
-from .shaders import CompileError, load_shader_programs
+from .shaders.slang import load_shader_programs
 from .types import LayerShellConfig
 from .utils import (
     cleanup_ssh_control_masters,
@@ -91,8 +90,7 @@ def set_custom_ibeam_cursor() -> None:
 def load_all_shaders() -> None:
     try:
         load_shader_programs()
-        load_borders_program()
-    except CompileError as err:
+    except ValueError as err:
         raise SystemExit(err)
 
 
@@ -322,6 +320,9 @@ def _run_app(opts: Options, args: CLIOptions, bad_lines: Sequence[BadLine] = (),
         window_state = (args.start_as if args.start_as and args.start_as != 'normal' else None) or (
             getattr(startup_sessions[0], 'os_window_state', None) if startup_sessions else None
         )
+        # Remember the maximized state from the previous session, if enabled.
+        if window_state is None and opts.remember_window_size:
+            window_state = cached_values.get('window-state') or None
         wstate = parse_os_window_state(window_state) if window_state is not None else None
 
         with startup_notification_handler(extra_callback=run_app.first_window_callback) as pre_show_callback:

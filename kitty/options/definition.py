@@ -456,7 +456,8 @@ trail animation only follows cursors that have stayed in their position for long
 than the specified number of milliseconds. This prevents trails from appearing
 for cursors that rapidly change their positions during UI updates in complex applications.
 See :opt:`cursor_trail_decay` to control the animation speed and :opt:`cursor_trail_start_threshold`
-to control when a cursor trail is started.
+to control when a cursor trail is started. You can also have different styles of trail by
+using the :opt:`custom_shaders` option, for example: :code:`custom_shaders cursor-trail-blaze`.
 """,
 )
 
@@ -530,7 +531,7 @@ opt(
     'scrollbar',
     'scrolled',
     ctype='scrollbar',
-    choices=('scrolled', 'always', 'never', 'hovered', 'scrolled-and-hovered'),
+    choices=('scrolled', 'always', 'never', 'hovered', 'scrolled-and-hovered', 'scrolled-or-hovered'),
     long_text="""\
 Control when the scrollbar is displayed.
 
@@ -540,6 +541,8 @@ Control when the scrollbar is displayed.
     means when the mouse is hovering on the right edge of the window.
 :code:`scrolled-and-hovered`
     means when the mouse is over the scrollbar region *and* scrolling backwards has started.
+:code:`scrolled-or-hovered`
+    means when the mouse is over the scrollbar region *or* scrolling backwards has started.
 :code:`always`
     means whenever any scrollback is present
 :code:`never`
@@ -1570,7 +1573,7 @@ opt(
     'yes',
     option_type='to_bool',
     long_text="""
-If enabled, the :term:`OS Window <os_window>` size will be remembered so that
+If enabled, the :term:`OS Window <os_window>` size and maximize state will be remembered so that
 new instances of kitty will have the same size as the previous instance.
 If disabled, the :term:`OS Window <os_window>` will initially have size
 configured by initial_window_width/height, in pixels. You can use a suffix of
@@ -1742,6 +1745,25 @@ The value can be one of: :code:`top-left`, :code:`top`, :code:`top-right`,
 )
 
 opt(
+    'padding_fill_strategy',
+    'background',
+    choices=('background', 'neighboring_cell'),
+    ctype='padding_fill_strategy',
+    long_text="""
+When the window size is not an exact multiple of the cell size, thin strips of
+compensatory padding are added at the window edges (see
+:opt:`placement_strategy`). This option controls how those strips are colored.
+:code:`neighboring_cell` colors each strip to match the
+background color of the cell adjacent to it, which looks best with full screen
+applications such as editors that have differently colored border cells. A value
+of :code:`background` colors the strips using the window background
+color. Note that this only affects the compensatory padding, the intentional
+padding from :opt:`window_padding_width` is always drawn using the background
+color.
+""",
+)
+
+opt(
     'active_border_color',
     '#00ff00',
     option_type='to_color_or_none',
@@ -1768,14 +1790,15 @@ opt(
     option_type='signed_unit_float',
     ctype='float',
     long_text="""
-Fade the text in inactive windows by the specified amount. This must be a
+Fade the content in inactive windows by the specified amount. This must be a
 number between -1 and 1. The absolute value controls the actual
 opacity, with zero being fully faded and one being fully opaque. When a positive number is
 used the text is faded even if only a single window is visible when the OS window
 is not focused. Negative numbers means that text is only faded when more than one kitty window
 is visible in an OS Window. Fading happens in all but the active window, even if the OS Window
 is not focused. Thus this is useful if you want to rely on the window manager to indicate OS Window focus
-and this feature to indicate which kitty window is active insidethe OS Window.
+and this feature to indicate which kitty window is active inside the OS Window. For alternate dimming/highlighting
+strategies, you can use :opt:`custom_shaders` for example: :code:`custom_shaders dim-inactive-windows`.
 """,
 )
 
@@ -2291,6 +2314,48 @@ The maximum number of cells that can be used to render the text in a tab.
 A value of zero means that no limit is applied. For vertical tab bars, kitty
 uses a default sidebar width sized for about twenty title cells when this is
 left unset.
+""",
+)
+
+opt(
+    'tab_title_max_lines',
+    '1',
+    option_type='positive_int',
+    long_text="""
+The maximum number of lines each tab may occupy, for vertical tab bars only
+(see :opt:`tab_bar_edge`). Titles containing newlines are rendered over
+multiple lines, up to this limit; any remaining lines are dropped. A value of
+:code:`1` (the default) keeps every tab on a single line, so newlines in
+:opt:`tab_title_template` have no effect. Increase it to make room for
+multi-line titles, for example::
+
+    tab_title_max_lines 2
+    tab_title_template "{index}: {tab.active_exe}\\n{title}"
+
+Note that tabs are packed according to the number of lines each title actually
+uses, so a tab with a single-line title still occupies only one line even when
+this is greater than one.
+""",
+)
+
+opt(
+    'tab_title_wrap',
+    'no',
+    option_type='tab_title_wrap',
+    long_text="""
+Wrap tab titles that are too long to fit instead of truncating them, for
+vertical tab bars only (see :opt:`tab_bar_edge`). Can be :code:`no` (the
+default) to truncate with an ellipsis as before, :code:`yes` to wrap at the
+width of the tab bar, or a number to wrap at that many cells, for example::
+
+    tab_title_wrap yes
+    tab_title_wrap 20
+
+Wrapping is limited by :opt:`tab_title_max_lines`, so it has no visible effect
+while that is :code:`1`. When a title needs more lines than are allowed, the
+last line it is given is truncated with an ellipsis. Explicit newlines in
+:opt:`tab_title_template` still start a new line, and each of the resulting
+lines is wrapped independently.
 """,
 )
 
@@ -2920,6 +2985,20 @@ in kitty session files. Each variable name is treated as a glob pattern to match
 read after the configuration is fully processed, thus they are not available for recursive expansion and
 they will override any variables set by other :opt:`env` directives.
 """,
+)
+
+opt(
+    'custom_shaders',
+    '',
+    option_type='custom_shaders',
+    add_to_default=False,
+    long_text="""
+Space separated list of custom shader pipeline names. If multiple names are specified they are
+loaded in order and concatenated. You can use shell syntax to quote or escape space characters.
+The exact loading algorithm is described in :ref:`custom_shader_load_order`.
+See :doc:`/custom-shaders` for details on how custom shaders work. For a quick demo, try setting
+this to :code:`inside-the-matrix`.
+    """,
 )
 
 opt(
@@ -3568,6 +3647,69 @@ opt(
     long_text="""
 Special modifier key alias for default shortcuts. You can change the value of
 this option to alter all default shortcuts that use :opt:`kitty_mod`.
+""",
+)
+
+opt(
+    'remap_modifiers',
+    '',
+    option_type='remap_modifiers',
+    ctype='!remap_modifiers',
+    add_to_default=False,
+    long_text="""
+Remap modifiers, making one modifier act as another. The syntax is::
+
+    remap_modifiers <from>:<to> <from>:<to> ...
+
+for example :code:`remap_modifiers ctrl:super` makes every :kbd:`Ctrl+key` press
+arrive as :kbd:`Super+key`. Only :code:`shift`, :code:`alt`, :code:`ctrl`,
+:code:`super`, :code:`hyper` and :code:`meta` can be named. The source must be
+exactly one modifier; the destination may name more than one, in which case
+holding the source is indistinguishable from holding all of them.
+
+To swap two modifiers, specify remap rules for both, for example, to swap ctrl and super::
+
+    remap_modifiers ctrl:super super:ctrl
+
+Ordering among :opt:`remap_modifiers` items matters only in that the last item for
+a given source wins.
+
+The remapping happens before anything else looks at the event, so it is
+application wide: kitty's own keyboard shortcuts, :opt:`kitty_mod`,
+:code:`mouse_map` and the keys sent to the program running in the terminal all
+see the remapped modifier. Every mapping in :file:`kitty.conf` is therefore
+written in terms of the modifier a key *becomes*, not the one printed on the
+keycap — including the built-in shortcuts, so :code:`remap_modifiers ctrl super`
+moves every default :code:`ctrl+shift+…` binding onto the physical Super key
+unless you also change :opt:`kitty_mod`.
+
+A modifier key's own press and release are remapped too, so that a program using
+the full keyboard protocol does not see, for example, ctrl reported together with
+the Hyper key. That is only possible when the destination is a single modifier;
+with a multi-modifier destination the key itself keeps its original identity.
+
+On macOS, a menu bar accelerator is shown on the physical key that now produces
+the modifier it was declared with. Where no such key exists — because more than
+one modifier maps onto it, or because it maps to hyper or meta, which the macOS
+menu bar cannot express — the accelerator is left off the menu rather than shown
+incorrectly. The shortcut itself continues to work.
+
+On macOS the remap is applied before the key event reaches the text input
+system, so :kbd:`Option`, which produces text natively unless
+:opt:`macos_option_as_alt` is set, behaves consistently with the modifiers it
+reports. A destination of :kbd:`hyper` or :kbd:`meta` cannot be expressed in
+Cocoa's modifier flags, so such a remap is left unapplied there rather than
+silently losing the modifier.
+
+On Wayland, kitty only detects the :kbd:`hyper` and :kbd:`meta` modifiers when
+:envvar:`KITTY_WAYLAND_DETECT_MODIFIERS` is set in the environment. Without it
+those two never appear on key events at all, so remapping to or from them has
+nothing to act on there.
+
+This is useful for keyboard layouts that move Control somewhere more comfortable
+— for example placing a Hyper key on Caps Lock to use for readline and TUI
+editing, while leaving the physical Control key free for GUI-style shortcuts.
+Use :code:`kitty --debug-input` to see the remapping applied to each event.
 """,
 )
 

@@ -5,7 +5,7 @@ from collections import deque
 
 from kitty.window import Window
 
-from . import BaseTest
+from .base import BaseTest
 
 
 def make_title_window():
