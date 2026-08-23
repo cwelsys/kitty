@@ -101,18 +101,12 @@ require_not_on_master() {
     fi
 }
 
-gofmt_generated() {
-    command -v gofmt >/dev/null 2>&1 || return 0
-    gofmt -s -w tools kittens >/dev/null 2>&1 || true
-}
-
 regen_config() {
     echo "==> Regenerating config-derived files..."
     if ! "$PYTHON" -O gen config; then
         echo "!!! WARN: 'gen config' failed (dev env missing? run ./dev.sh deps)." >&2
         return 1
     fi
-    gofmt_generated
 }
 
 conflict_banner() {
@@ -209,7 +203,6 @@ fi
 
 echo "==> Building..."
 ./dev.sh build
-gofmt_generated
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
     echo "==> Updating terminfo..."
