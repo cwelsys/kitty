@@ -1,21 +1,36 @@
 #!/usr/bin/env bash
-# update.sh — merge upstream into cwel, build, deploy
+# update.sh — sync kitty fork with upstream, build, deploy
 #
 # Usage:
 #   ./update.sh              # sync + push + build
+#   ./update.sh --no-push    # sync + build, leave origin alone
+#   ./update.sh --no-build   # sync + push only
 #   ./update.sh --status     # fetch + report only
 #   ./update.sh --resume     # finish + push after resolving a conflict
-#   ./update.sh --no-build   # sync/push only
 #   ./update.sh --help
+#
+# Remotes expected:
+#   upstream  https://github.com/kovidgoyal/kitty.git
+#   origin    https://github.com/cwelsys/kitty.git
+#
+# Patches live on cwel, merged with master rather than rebased. Config-derived
+# files are regenerated after every merge rather than merged, so conflicts in
+# them resolve themselves.
 
 set -euo pipefail
 
+REPO_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
+SELF="$REPO_DIR/${0##*/}"
+cd "$REPO_DIR"
+
 BRANCH="cwel"
 BUILD=true
+PUSH=true
 RESUME=false
 STATUS_ONLY=false
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 CODESIGN_ID="Developer ID Application: CONNOR JOHN WELSH (Z76D8X6L37)"
+
+usage() { sed -n '2,${/^#/!q; s/^# \{0,1\}//p;}' "$SELF"; }
 
 # A system python3 of the same ABI loads fast_data_types.so, then segfaults.
 pick_python() {
@@ -48,13 +63,14 @@ FULLY_GENERATED=(
 for arg in "$@"; do
     case "$arg" in
     --no-build) BUILD=false ;;
+    --no-push) PUSH=false ;;
     --resume) RESUME=true ;;
     --status)
         STATUS_ONLY=true
         BUILD=false
         ;;
     --help | -h)
-        sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+        usage
         exit 0
         ;;
     *)
@@ -163,7 +179,9 @@ else
     echo "==> Fetching upstream + origin..."
     git fetch upstream master:master
     git fetch origin --quiet
-    $STATUS_ONLY || git push origin master
+    if ! $STATUS_ONLY && $PUSH; then
+        git push origin master
+    fi
 
     echo "==> State:"
     echo "  master        $(short master)"
@@ -191,8 +209,10 @@ if ! git merge-base --is-ancestor master "$BRANCH"; then
     exit 1
 fi
 
-echo "==> Pushing $BRANCH to origin..."
-git push origin "$BRANCH"
+if $PUSH; then
+    echo "==> Pushing $BRANCH to origin..."
+    git push origin "$BRANCH"
+fi
 
 echo "==> ✓ Synced: $BRANCH@$(short "$BRANCH") contains master@$(short master)."
 
