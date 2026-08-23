@@ -9,10 +9,24 @@ from .constants import shell_path
 from .utils import resolved_shell
 
 # Shells that may be used as an interactive nested shell. Basenames only.
-_STATIC_SHELLS = frozenset({
-    'bash', 'zsh', 'fish', 'sh', 'dash', 'ksh', 'mksh', 'tcsh', 'csh',
-    'nu', 'elvish', 'xonsh', 'ash', 'pwsh',
-})
+_STATIC_SHELLS = frozenset(
+    {
+        'bash',
+        'zsh',
+        'fish',
+        'sh',
+        'dash',
+        'ksh',
+        'mksh',
+        'tcsh',
+        'csh',
+        'nu',
+        'elvish',
+        'xonsh',
+        'ash',
+        'pwsh',
+    }
+)
 
 
 @lru_cache(maxsize=4)
@@ -40,8 +54,13 @@ def is_shell_exe(path: str) -> bool:
 
 
 def choose_cwd(
-    *, reported: str, child_is_remote: bool, at_prompt: bool,
-    foreground_is_nested_shell: bool, heuristic_cwd: str, mode: str,
+    *,
+    reported: str,
+    child_is_remote: bool,
+    at_prompt: bool,
+    foreground_is_nested_shell: bool,
+    heuristic_cwd: str,
+    mode: str,
 ) -> str:
     local_reported = bool(reported) and not child_is_remote
     if mode == 'last_reported':

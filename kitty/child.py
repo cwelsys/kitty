@@ -572,14 +572,14 @@ class Child:
 
     def resolve_persist_root_pid(self) -> int:
         from .persist import parse_session_pid, session_pid_command
+
         exe = which('zmx')
         if not exe:
             return 0
         try:
             import subprocess
-            cp = subprocess.run(
-                session_pid_command(self.persist_session, exe), capture_output=True,
-                timeout=2, encoding='utf-8', errors='replace')
+
+            cp = subprocess.run(session_pid_command(self.persist_session, exe), capture_output=True, timeout=2, encoding='utf-8', errors='replace')
         except Exception as err:
             log_error(f'kitty: could not resolve zmx session {self.persist_session}: {err}')
             return 0
@@ -587,13 +587,13 @@ class Child:
 
     @property
     def persist_root_pid(self) -> int:
-        '''
+        """
         Pid of the process the persistence wrapper started for this window, else 0.
 
         Stable for the session's lifetime -- the session ends when this process
         exits -- so it is resolved once. Failure is cached as 0 too: this is on
         the tab bar's redraw path and must never fork zmx repeatedly.
-        '''
+        """
         if not self.persist_session:
             return 0
         if self._persist_root_pid is None:
@@ -602,14 +602,14 @@ class Child:
 
     @property
     def effective_pgrp(self) -> int:
-        '''
+        """
         Foreground process group of the terminal the real program runs on.
 
         For a persisted window that terminal is not the one kitty created: the
         wrapper's client sits on kitty's pty while the program runs on a pty
         owned by the wrapper's daemon. The kernel still tracks that pty's
         foreground group, so it can be read without holding a descriptor for it.
-        '''
+        """
         with suppress(Exception):
             if pid := self.persist_root_pid:
                 return tty_foreground_process_group(pid)
@@ -619,7 +619,7 @@ class Child:
 
     @property
     def effective_pid(self) -> int | None:
-        ' The process to read cwd/environ from: the real program, not the wrapper client '
+        "The process to read cwd/environ from: the real program, not the wrapper client"
         return self.persist_root_pid or self.pid
 
     @property

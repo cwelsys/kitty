@@ -168,8 +168,7 @@ class CwdRequest:
         window = self.window
         if not window:
             return ''
-        return window.resolved_cwd(
-            oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
+        return window.resolved_cwd(oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
 
     def modify_argv_for_launch_with_cwd(self, argv: list[str], env: dict[str, str] | None = None, hold_after_ssh: bool = False) -> str:
         window = self.window
@@ -224,8 +223,7 @@ class CwdRequest:
                 return ''
             if not window.child_is_remote and (self.request_type is CwdRequestType.last_reported or window.at_prompt):
                 return reported_cwd
-        return window.resolved_cwd(
-            oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
+        return window.resolved_cwd(oldest=self.request_type is CwdRequestType.oldest, request_type=self.request_type)
 
 
 def process_title_from_child(title: memoryview, is_base64: bool, default_title: str) -> str:
@@ -2129,8 +2127,13 @@ class Window:
             heuristic = self.get_cwd_of_child(oldest=oldest) or ''
         nested = self._foreground_is_nested_shell(oldest) if mode == 'current' else False
         return choose_cwd(
-            reported=reported, child_is_remote=self.child_is_remote, at_prompt=self.at_prompt,
-            foreground_is_nested_shell=nested, heuristic_cwd=heuristic, mode=mode)
+            reported=reported,
+            child_is_remote=self.child_is_remote,
+            at_prompt=self.at_prompt,
+            foreground_is_nested_shell=nested,
+            heuristic_cwd=heuristic,
+            mode=mode,
+        )
 
     def get_exe_of_child(self, oldest: bool = False) -> str:
         return self.child.get_foreground_exe(oldest) or self.child.argv[0]
@@ -2339,7 +2342,6 @@ class Window:
             'is_active': is_active,
             'title': self.title,
             'title_overridden': self.override_title is not None,
-
             'program_title': self.program_title,
             'shell_title': self.shell_title,
             'pid': self.child.pid,
