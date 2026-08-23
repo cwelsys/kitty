@@ -1102,6 +1102,10 @@ class Window:
             g.spaces.top,
             g.spaces.right,
             g.spaces.bottom,
+            g.compensatory.left,
+            g.compensatory.top,
+            g.compensatory.right,
+            g.compensatory.bottom,
         )
         self.update_effective_padding()
 
@@ -1406,7 +1410,8 @@ class Window:
         if timer_id is not None:  # this is a timer callback
             self.clear_progress_timer = 0
         if self.progress.clear_progress():
-            self.screen.set_progress(0, 0)
+            if hasattr(self, 'screen'):
+                self.screen.set_progress(0, 0)
             if (tab := self.tabref()) is not None:
                 tab.update_progress()
         else:
@@ -2908,7 +2913,10 @@ def set_pointer_shape(screen: Screen, value: str, os_window_id: int = 0) -> str:
     if op in '=>':
         for v in value.split(','):
             if v or op == '=':
-                screen.change_pointer_shape(op, v)
+                try:
+                    screen.change_pointer_shape(op, v)
+                except KeyError:
+                    log_error(f'Ignoring unknown pointer shape name: {v!r}')
         if os_window_id and current_focused_os_window_id() == os_window_id:
             update_pointer_shape(os_window_id)
     elif op == '<':

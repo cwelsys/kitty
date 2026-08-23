@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # License: GPL v3 Copyright: 2018, Kovid Goyal <kovid at kovidgoyal.net>
-from . import BaseTest
+from .base import BaseTest
 
 
 class TestTabBarZones(BaseTest):

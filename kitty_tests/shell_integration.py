@@ -17,7 +17,7 @@ from kitty.constants import is_macos, kitten_exe, kitty_base_dir, shell_integrat
 from kitty.fast_data_types import CURSOR_BEAM, CURSOR_BLOCK, CURSOR_UNDERLINE
 from kitty.shell_integration import setup_bash_env, setup_fish_env, setup_zsh_env
 
-from . import BaseTest
+from .base import BaseTest
 
 
 @lru_cache
@@ -157,6 +157,45 @@ class ShellIntegration(BaseTest):
             func = extract_sudo_function(f.read())
         self.assertIsNotNone(func)
         self.sudo_parser_tests(['bash', '--noprofile', '--norc', '-c'], func)
+
+    @unittest.skipUnless(bash_ok(), 'bash not installed, too old, or debug build')
+    def test_bash_disabled_command_hook(self):
+        if self.with_kitten:
+            return
+        integration_script = os.path.join(shell_integration_dir, 'bash', 'kitty.bash')
+        command = 'PS0=original; source "$KITTY_BASH_INTEGRATION"; _ksi_prompt_command; printf %s "$PS0"'
+        common_options = 'enabled no-cursor no-cwd no-complete no-sudo'
+        for options, has_command_hook in (
+            ('no-title no-prompt-mark', False),
+            ('no-prompt-mark', True),
+            ('no-title', True),
+        ):
+            with self.subTest(options=options), tempfile.TemporaryDirectory() as home_dir:
+                env = basic_shell_env(home_dir)
+                env['KITTY_BASH_INTEGRATION'] = integration_script
+                env['KITTY_SHELL_INTEGRATION'] = f'{common_options} {options}'
+                cp = subprocess.run(['bash', '--noprofile', '--norc', '-ic', command], env=env, capture_output=True)
+                self.assertEqual(cp.returncode, 0, cp.stderr.decode())
+                self.assertEqual(cp.stdout.decode() != 'original', has_command_hook)
+
+    @unittest.skipUnless(bash_ok(), 'bash not installed, too old, or debug build')
+    def test_bash_ssh_hostname_fallback(self):
+        if self.with_kitten:
+            return
+        integration_script = os.path.join(shell_integration_dir, 'bash', 'kitty.bash')
+        command = 'PS1="prompt> "; source "$KITTY_BASH_INTEGRATION"; _ksi_prompt_command; printf %s "${PS1@P}"'
+        with tempfile.TemporaryDirectory() as home_dir:
+            home_dir = os.path.realpath(home_dir)
+            who = os.path.join(home_dir, 'who')
+            with open(who, 'w') as f:
+                f.write("#!/bin/sh\nprintf '%s\\n' 'user pts/0 (192.0.2.1)'\n")
+            os.chmod(who, 0o755)
+            env = basic_shell_env(home_dir)
+            env['KITTY_BASH_INTEGRATION'] = integration_script
+            env['PATH'] = os.pathsep.join((home_dir, env['PATH']))
+            cp = subprocess.run(['bash', '--noprofile', '--norc', '-ic', command], cwd=home_dir, env=env, capture_output=True)
+            self.assertEqual(cp.returncode, 0, cp.stderr.decode())
+            self.assertIn(': ~\x07', cp.stdout.decode())
 
     @unittest.skipUnless(shutil.which('fish'), 'fish not installed')
     def test_fish_sudo_parser(self):

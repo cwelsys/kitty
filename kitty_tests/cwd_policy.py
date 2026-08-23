@@ -4,7 +4,7 @@
 import os
 import tempfile
 
-from . import BaseTest
+from .base import BaseTest
 
 
 class CwdPolicy(BaseTest):
