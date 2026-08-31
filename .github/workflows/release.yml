@@ -56,6 +56,38 @@ jobs:
             /Users/runner/bypy-root/sources
           key: bypy-${{ runner.os }}-${{ hashFiles('bypy/sources.json') }}
 
+      - name: adopt the runner cmake
+        run: |
+          set -euo pipefail
+          cmake --version
+          mkdir -p "$BYPY_ROOT/sw/pkg/cmake/bin"
+          ln -sfn "$(command -v cmake)" "$BYPY_ROOT/sw/pkg/cmake/bin/cmake"
+          "$BYPY_ROOT/sw/pkg/cmake/bin/cmake" --version >/dev/null
+
+      - name: signing credentials
+        id: signing
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARIZATION_CREDS: ${{ secrets.APPLE_NOTARIZATION_CREDS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CERT_P12:-}" ]; then
+            echo "::warning::MACOS_CERT_P12 is unset, the dmg will be unsigned"
+            echo "flags=--non-interactive" >> "$GITHUB_OUTPUT"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          : "${CERT_PASSWORD:?MACOS_CERT_PASSWORD is unset}"
+          : "${NOTARIZATION_CREDS:?APPLE_NOTARIZATION_CREDS is unset}"
+          mkdir -p ~/code-signing
+          printf '%s' "$CERT_P12" | base64 -d > ~/code-signing/maccert.p12
+          printf '%s' "$CERT_PASSWORD" > ~/code-signing/cert-cred
+          printf '%s' "$NOTARIZATION_CREDS" > ~/code-signing/apple-notarization-creds
+          chmod 600 ~/code-signing/maccert.p12 ~/code-signing/cert-cred ~/code-signing/apple-notarization-creds
+          echo "flags=--sign-installers --notarize --non-interactive" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
       - name: deps
         env:
           BYPY_WORKER: ${{ github.workspace }}
@@ -64,7 +96,7 @@ jobs:
       - name: program
         env:
           BYPY_WORKER: ${{ github.workspace }}
-        run: python3 "$BYPY_ROOT/bypy" program
+        run: python3 "$BYPY_ROOT/bypy" program ${{ steps.signing.outputs.flags }}
 
       - name: stage the artifact
         id: dmg
