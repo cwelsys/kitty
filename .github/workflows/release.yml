@@ -48,6 +48,25 @@ jobs:
           sed -i '' '/^def get_git_with_submodules/,/^def /s/^    if not pkg\.verify_hash(path):$/    if False:/' \
             "$BYPY_ROOT/bypy/bypy/download_sources.py"
           grep -q 'if False:' "$BYPY_ROOT/bypy/bypy/download_sources.py"
+          python3 - "$BYPY_ROOT/bypy/bypy/macos_sign.py" <<'PY'
+          import pathlib, sys
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          subs = (
+              (
+                  """cert_id = re.search(r'"([^"]+)"', raw).group(1)""",
+                  """cert_id = re.search(r'"(Developer ID Application[^"]+)"', raw).group(1)\n"""
+                  """        os.environ['CODESIGN_IDENTITY'] = cert_id""",
+              ),
+              ("'-s', 'Kovid Goyal'", "'-s', os.environ['CODESIGN_IDENTITY']"),
+          )
+          for old, new in subs:
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{old!r} matched {n} times, bypy changed shape')
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
 
       - uses: actions/cache@v4
         with:
