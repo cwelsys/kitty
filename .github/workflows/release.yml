@@ -1,0 +1,88 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BYPY_ROOT: /Users/runner/bypy-root
+  BYPY_UNIVERSAL: 'true'
+  BYPY_DEPLOY_TARGET: '12.0'
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: version
+        id: v
+        run: |
+          set -euo pipefail
+          base=$(sed -n 's/^version: Version = Version(\([0-9]*\), *\([0-9]*\), *\([0-9]*\)).*/\1.\2.\3/p' kitty/constants.py)
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "pkgver=$base.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: prerequisites
+        run: |
+          set -euo pipefail
+          python3 -m pip install --break-system-packages certifi meson ninja
+          sudo mkdir -p /usr/local/bin
+          [ -e /usr/local/bin/python3 ] || sudo ln -s "$(command -v python3)" /usr/local/bin/python3
+          mkdir -p "$BYPY_ROOT"/{sources,sw}
+          ln -sfn "$GITHUB_WORKSPACE" "$BYPY_ROOT/src"
+
+      - name: bypy
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/kovidgoyal/bypy.git "$BYPY_ROOT/bypy"
+          sed -i '' '/^def get_git_with_submodules/,/^def /s/^    if not pkg\.verify_hash(path):$/    if False:/' \
+            "$BYPY_ROOT/bypy/bypy/download_sources.py"
+          grep -q 'if False:' "$BYPY_ROOT/bypy/bypy/download_sources.py"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /Users/runner/bypy-root/sw
+            /Users/runner/bypy-root/sources
+          key: bypy-${{ runner.os }}-${{ hashFiles('bypy/sources.json') }}
+
+      - name: deps
+        env:
+          BYPY_WORKER: ${{ github.workspace }}
+        run: python3 "$BYPY_ROOT/bypy" deps
+
+      - name: program
+        env:
+          BYPY_WORKER: ${{ github.workspace }}
+        run: python3 "$BYPY_ROOT/bypy" program
+
+      - name: stage the artifact
+        id: dmg
+        run: |
+          set -euo pipefail
+          src="$BYPY_ROOT/sw/dist/kitty-${{ steps.v.outputs.base }}.dmg"
+          [ -f "$src" ] || { echo "no dmg at $src"; ls -la "$BYPY_ROOT/sw/dist" || true; exit 1; }
+          out="kitty-${{ steps.v.outputs.pkgver }}.dmg"
+          cp "$src" "$out"
+          shasum -a 256 "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ steps.v.outputs.pkgver }}"
+          gh release view "$tag" >/dev/null 2>&1 ||
+            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes "kitty ${{ steps.v.outputs.base }} (cwel fork)"
+          gh release upload "$tag" "${{ steps.dmg.outputs.path }}" --clobber
