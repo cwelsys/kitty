@@ -49,6 +49,9 @@ jobs:
             https://github.com/ryanoasis/nerd-fonts/raw/v3.5.1/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf
           echo "fe471e538392f51910faab985fa8e192a39dd3426125edd15b71b3680df0e749  fonts/SymbolsNerdFontMono-Regular.ttf" | shasum -a 256 -c -
 
+      - name: install the font fixtures the test suite requires under CI
+        run: python3 -c "import runpy; runpy.run_path('.github/workflows/ci.py')['install_fonts']()"
+
       - name: prerequisites
         run: |
           set -euo pipefail
