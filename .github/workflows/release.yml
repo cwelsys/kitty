@@ -38,6 +38,11 @@ jobs:
           python3 -m pip install --break-system-packages certifi meson ninja
           sudo mkdir -p /usr/local/bin
           [ -e /usr/local/bin/python3 ] || sudo ln -s "$(command -v python3)" /usr/local/bin/python3
+          for t in meson ninja; do
+            sudo ln -sfn "$(command -v "$t")" "/usr/local/bin/$t"
+          done
+          sanitized=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v homebrew | paste -sd: -)
+          PATH="$sanitized" command -v python3 meson ninja
           mkdir -p "$BYPY_ROOT"/{sources,sw}
           ln -sfn "$GITHUB_WORKSPACE" "$BYPY_ROOT/src"
 
