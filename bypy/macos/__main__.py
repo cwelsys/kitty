@@ -15,7 +15,7 @@ from collections.abc import Iterable
 
 from bypy.constants import BIN, LIBDIR, PREFIX, PYTHON, SW, python_major_minor_version
 from bypy.freeze import extract_extension_modules, freeze_python, path_to_freeze_dir
-from bypy.macos_sign import codesign, create_entitlements_file, make_certificate_useable, notarize_app, verify_signature
+from bypy.macos_sign import codesign, create_entitlements_file, make_certificate_useable, notarize_app
 from bypy.utils import current_dir, mkdtemp, py_compile, run_shell, timeit, walk
 
 iv = globals()['init_env']
@@ -127,7 +127,7 @@ def do_sign(app_dir: str) -> None:
 
     # Now sign the main app
     codesign(app_dir)
-    verify_signature(app_dir)
+    subprocess.check_call(['codesign', '-vvv', '--deep', '--strict', app_dir])
 
 
 def sign_app(app_dir, notarize) -> None:
