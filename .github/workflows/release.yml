@@ -90,7 +90,8 @@ jobs:
           p.write_text(s)
           PY
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: bypy-cache
         with:
           path: |
             /Users/runner/bypy-root/sw
@@ -105,6 +106,23 @@ jobs:
           ln -sfn "$(command -v cmake)" "$BYPY_ROOT/sw/pkg/cmake/bin/cmake"
           "$BYPY_ROOT/sw/pkg/cmake/bin/cmake" --version >/dev/null
 
+      - name: deps
+        env:
+          BYPY_WORKER: ${{ github.workspace }}
+        run: python3 "$BYPY_ROOT/bypy" deps
+
+      # save here rather than in a post step, which is skipped when the job
+      # fails, so a later failure does not cost another full dep rebuild
+      - uses: actions/cache/save@v4
+        if: steps.bypy-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            /Users/runner/bypy-root/sw
+            /Users/runner/bypy-root/sources
+          key: bypy-${{ runner.os }}-${{ hashFiles('bypy/sources.json') }}
+
+      # must come after deps: build_deps() calls delete_code_signing_certs()
+      # unconditionally, which rmtrees ~/code-signing
       - name: signing credentials
         id: signing
         env:
@@ -128,11 +146,6 @@ jobs:
           chmod 600 ~/code-signing/maccert.p12 ~/code-signing/cert-cred ~/code-signing/apple-notarization-creds
           echo "flags=--sign-installers --notarize --non-interactive" >> "$GITHUB_OUTPUT"
           echo "signed=true" >> "$GITHUB_OUTPUT"
-
-      - name: deps
-        env:
-          BYPY_WORKER: ${{ github.workspace }}
-        run: python3 "$BYPY_ROOT/bypy" deps
 
       - name: program
         env:
