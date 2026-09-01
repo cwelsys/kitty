@@ -77,8 +77,9 @@ jobs:
           subs = (
               (
                   """cert_id = re.search(r'"([^"]+)"', raw).group(1)""",
-                  """cert_id = re.search(r'"(Developer ID Application[^"]+)"', raw).group(1)\n"""
-                  """        os.environ['CODESIGN_IDENTITY'] = cert_id""",
+                  """m = re.search(r'([0-9A-F]{40}) "(Developer ID Application[^"]+)"', raw)\n"""
+                  """        cert_id = m.group(2)\n"""
+                  """        os.environ['CODESIGN_IDENTITY'] = m.group(1)""",
               ),
               ("'-s', 'Kovid Goyal'", "'-s', os.environ['CODESIGN_IDENTITY']"),
           )
