@@ -1449,8 +1449,13 @@ static void
 free_in_progress_drop_data(_GLFWwindow *window) {
     _GLFWDropData *d = &window->ns.drop_data;
     if (d->in_progress_drop.temp_dir) {
-        NSError *error = nil;
-        [[NSFileManager defaultManager] removeItemAtURL:d->in_progress_drop.temp_dir error:&error];
+        // When the paths of the files fulfilled from promises have been handed
+        // to the application, it is responsible for removing the temp dir
+        // holding them, see glfwCocoaPreserveDroppedFilePromises().
+        if (!d->in_progress_drop.keep_temp_dir) {
+            NSError *error = nil;
+            [[NSFileManager defaultManager] removeItemAtURL:d->in_progress_drop.temp_dir error:&error];
+        }
         [d->in_progress_drop.temp_dir release];
     }
     if (d->in_progress_drop.data_map) [d->in_progress_drop.data_map release];
@@ -1674,21 +1679,42 @@ build_uri_list(_GLFWDropData *d) {
     bool from_self = ([sender draggingSource] != nil);
     _GLFWDropData *d = &window->ns.drop_data;
     if (!reset_drop_copy_mimes(d)) return NO;
-    NSError *mkdirError = nil;
-    NSURL *tempDirURL = [[NSFileManager defaultManager] URLForDirectory:NSItemReplacementDirectory
-                                                               inDomain:NSUserDomainMask
-                                                      appropriateForURL:[NSURL fileURLWithPath:NSTemporaryDirectory()]
-                                                                 create:YES
-                                                                  error:&mkdirError];
-    if (!tempDirURL) {
-        NSLog(@"Failed to create temp dir for file promises: %@", mkdirError);
-        return NO;
+    NSPasteboard *pasteboard = [sender draggingPasteboard];
+    NSArray<NSFilePromiseReceiver *> *receivers = [pasteboard readObjectsForClasses:@[ [NSFilePromiseReceiver class] ] options:nil];
+    // When files are promised, any file URLs on the pasteboard point to the
+    // sender's staging copies, which fulfilling the promises invalidates, as
+    // fulfillment moves rather than copies them. So the uri-list has to be
+    // built from the fulfilled paths instead, see build_uri_list().
+    bool has_file_promises = false;
+    for (NSFilePromiseReceiver *receiver in receivers) {
+        for (NSString *uti in receiver.fileTypes) {
+            UTType *promisedType = [UTType typeWithIdentifier:uti];
+            if (promisedType && [promisedType conformsToType:UTTypeFileURL]) {
+                has_file_promises = true;
+                break;
+            }
+        }
+        if (has_file_promises) break;
+    }
+    NSURL *tempDirURL = nil;
+    if ([receivers count] > 0) {
+        NSError *mkdirError = nil;
+        tempDirURL = [[NSFileManager defaultManager] URLForDirectory:NSItemReplacementDirectory
+                                                            inDomain:NSUserDomainMask
+                                                   appropriateForURL:[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                                                              create:YES
+                                                               error:&mkdirError];
+        if (!tempDirURL) {
+            NSLog(@"Failed to create temp dir for file promises: %@", mkdirError);
+            return NO;
+        }
     }
     d->in_progress_drop.data_map = [[NSMutableDictionary alloc] init];
-    NSPasteboard *pasteboard = [sender draggingPasteboard];
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSURL *url in [pasteboard readObjectsForClasses:@[ [NSURL class] ] options:nil]) [urls addObject:url];
-    if ([urls count] > 0) create_uri_list(d, urls);
+    if (!has_file_promises) {
+        NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+        for (NSURL *url in [pasteboard readObjectsForClasses:@[ [NSURL class] ] options:nil]) [urls addObject:url];
+        if ([urls count] > 0) create_uri_list(d, urls);
+    }
     NSMutableArray<NSString *> *texts = [NSMutableArray array];
     for (NSString *text in [pasteboard readObjectsForClasses:@[ [NSString class] ] options:nil]) [texts addObject:text];
     if ([texts count] > 0) {
@@ -1707,7 +1733,6 @@ build_uri_list(_GLFWDropData *d) {
             d->in_progress_drop.data_map[@(mime)] = s;
         }
     }
-    NSArray *receivers = [pasteboard readObjectsForClasses:@[ [NSFilePromiseReceiver class] ] options:nil];
     if ([receivers count] > 0) {
         d->in_progress_drop.request_id = ++window->ns.drop_request_counter;
         unsigned long long request_id = d->in_progress_drop.request_id;
@@ -1865,6 +1890,30 @@ _glfwPlatformReadAvailableDropData(GLFWwindow *w, GLFWDropEvent *ev, char *buffe
 void
 _glfwPlatformEndDrop(GLFWwindow *w UNUSED, GLFWDragOperationType op UNUSED) {
     free_drop_data((_GLFWwindow *)w);
+}
+
+// Transfer ownership of the temporary directory holding the files fulfilled
+// from the file promises of the in progress drop to the caller, so that it is
+// not deleted when the drop ends. Returns the path to the directory or NULL if
+// this drop has no files fulfilled from promises. The returned string is valid
+// only until the next tick of the event loop. Must be called before the drop
+// is finished.
+GLFWAPI const char *
+glfwCocoaPreserveDroppedFilePromises(GLFWwindow *w) {
+    _GLFWwindow *window = (_GLFWwindow *)w;
+    _GLFWDropData *d = &window->ns.drop_data;
+    NSDictionary *path_map = d->in_progress_drop.path_map;
+    if (!d->in_progress_drop.temp_dir || !path_map) return NULL;
+    bool has_files = false;
+    for (NSString *mime in path_map) {
+        if ([path_map[mime] isKindOfClass:[NSURL class]]) {
+            has_files = true;
+            break;
+        }
+    }
+    if (!has_files) return NULL;
+    d->in_progress_drop.keep_temp_dir = true;
+    return [(NSURL *)d->in_progress_drop.temp_dir fileSystemRepresentation];
 }
 // }}}
 
