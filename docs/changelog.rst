@@ -254,6 +254,8 @@ Detailed list of changes
 
 - dnd kitten: Add an option to use file copies instead of hard links for copy drops (:pull:`10412`)
 
+- Fix a malformed CSI escape sequence such as ``\e[?:`` corrupting the parser state so that subsequent SGR color codes are ignored (:iss:`10434`)
+
 - Graphics protocol: Fix a regression in 0.45.0 that caused the overwrite
   composition mode for animation frames (``a=f``) to be controlled by the
   undocumented ``C`` key instead of the documented ``X`` key (:iss:`10379`)
@@ -301,6 +303,10 @@ Detailed list of changes
 - Color control protocol: Report unknown fields as ``unknown=<base64 encoded
   field name>`` instead of echoing the field name back verbatim, which allowed
   using the escape code to make the terminal emit arbitrary printable ASCII text
+
+- macOS: Fix dropping files that are provided as file promises pasting paths to
+  files that no longer exist. The dropped files are now kept alive for
+  ten minutes and removed when kitty quits (:iss:`10430`)
 
 
 0.48.2 [2026-07-30]
