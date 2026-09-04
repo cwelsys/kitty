@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import NamedTuple
 
-from ..fast_data_types import Screen, get_boss, wcswidth
+from ..fast_data_types import Screen, get_boss, get_options
 from ..tab_bar import (
     CellRange,
     DrawData,
@@ -15,7 +15,7 @@ from ..tab_bar import (
     as_rgb,
 )
 from ..utils import log_error
-from .text import pad_pua_icon
+from .text import display_width, pad_pua_icon
 
 
 class TabContent(NamedTuple):
@@ -24,25 +24,14 @@ class TabContent(NamedTuple):
     icon: str
     icon_fg: int
     icon_bg: int
-    bold_icon: bool = True
 
 
 class ZoneContent(NamedTuple):
-    """Content for a left or right zone, returned by the content provider.
-
-    Zones render flat: the icon is a colored glyph on the bar background,
-    followed by the content parts. No pill chrome.
-    """
+    """Content for a left or right zone: a colored icon glyph on the bar background, then the parts."""
 
     icon: str
     parts: tuple[tuple[str, int], ...]
     icon_color: int
-
-
-def _display_width(s: str) -> int:
-    """Return display width of a string (handles double-width glyphs)."""
-    w = wcswidth(s)
-    return w if w >= 0 else len(s)
 
 
 PILL_BODY_CELLS = 4
@@ -53,19 +42,14 @@ def _pill_cells(
     border_left: str,
     border_right: str,
 ) -> list[tuple[int, int, bool, str]]:
-    """Return a list of (bg, fg, bold, text) cells for one tab pill.
+    """(bg, fg, bold, text) cells for one pill: [cap_left][lead][icon + pad][trail][cap_right].
 
-    Layout: [cap_left][lead][icon + pad][trail][cap_right]
-
-    The caps are glyphs coloured with the pill colour on the bar background;
-    the body between them is a run of pill-coloured cells with the content
-    centred on it. A PUA icon and the space after it are one two-cell ligature
-    and are emitted as a single unit, so no caller can split the glyph from its
-    pad. Content wider than the body grows the body rather than being clipped,
-    which is what keeps `tab_bar_icon_elements index icon` legible.
+    A PUA icon and the space after it are one two-cell ligature, so they are emitted as a
+    single cell that no caller can split. Content wider than the body grows it rather than
+    being clipped.
     """
     icon = pad_pua_icon(content.icon)
-    icon_width = _display_width(icon)
+    icon_width = display_width(icon)
     body = max(PILL_BODY_CELLS, icon_width + 2)
     lead = (body - icon_width) // 2
     trail = body - icon_width - lead
@@ -76,7 +60,7 @@ def _pill_cells(
     if lead:
         cells.append((content.icon_bg, content.icon_fg, False, ' ' * lead))
     if icon:
-        cells.append((content.icon_bg, content.icon_fg, content.bold_icon, icon))
+        cells.append((content.icon_bg, content.icon_fg, True, icon))
     if trail:
         cells.append((content.icon_bg, content.icon_fg, False, ' ' * trail))
     if border_right:
@@ -86,14 +70,11 @@ def _pill_cells(
 
 def _pill_width(content: TabContent, border_left: str, border_right: str) -> int:
     """Calculate drawn width of a tab pill from the cells it will draw."""
-    return sum(_display_width(text) for _, _, _, text in _pill_cells(content, border_left, border_right))
+    return sum(display_width(text) for _, _, _, text in _pill_cells(content, border_left, border_right))
 
 
 def _draw_pill(screen: Screen, content: TabContent, border_left: str, border_right: str) -> None:
-    """Draw a single tab pill from the cell list returned by _pill_cells.
-
-    Colors come from the TabContent. The engine never resolves colors.
-    """
+    """Draw a single tab pill from the cell list returned by _pill_cells."""
     for bg, fg, bold, text in _pill_cells(content, border_left, border_right):
         screen.cursor.bg = bg
         screen.cursor.fg = fg
@@ -111,16 +92,7 @@ def _zone_cells(
     content: ZoneContent,
     mirrored: bool = False,
 ) -> list[tuple[int, int, bool, str]]:
-    """Return a list of (bg, fg, bold, glyph) cells for a flat zone.
-
-    Layouts:
-        Standard:  [icon][' '][parts]
-        Mirrored:  [parts][' '][icon]
-
-    Everything sits on the bar background (bg 0); the icon is a bold
-    colored glyph and parts keep their own fg colors. Parts stay LTR.
-    An empty icon emits no cell and reserves no gap.
-    """
+    """(bg, fg, bold, glyph) cells for a flat zone: [icon][' '][parts], reversed when mirrored."""
     part_cells = [(0, fg, False, text) for text, fg in content.parts if text]
     if not content.icon:
         return part_cells
@@ -147,11 +119,10 @@ def _draw_zone(
     screen.cursor.bold = False
 
 
-def _zone_width(content: ZoneContent, mirrored: bool = False) -> int:
+def _zone_width(content: ZoneContent) -> int:
     """Calculate drawn width of a flat zone: icon + pad + parts."""
-    del mirrored
-    icon_width = _display_width(content.icon)
-    text_width = sum(_display_width(text) for text, _ in content.parts)
+    icon_width = display_width(content.icon)
+    text_width = sum(display_width(text) for text, _ in content.parts)
     if icon_width and text_width:
         return icon_width + 1 + text_width
     return icon_width + text_width
@@ -162,45 +133,31 @@ def draw_tab_with_zones(
     screen: Screen,
     tabs: Sequence[TabBarData],
 ) -> list[TabExtent]:
-    """Draw all tabs using three-zone layout. Returns tab_extents for click detection.
+    """Draw all tabs in the three-zone layout and return tab_extents for click detection.
 
-    Called once per render cycle (not per tab). Owns all layout, positioning,
-    and CellRange generation.
-
-    Zones:
-        Left:   CWD/git status (content from provider)
-        Center: Tab pills (centered, uniform width)
-        Right:  Provider content (right_zone_func, e.g. active title)
-
-    Only center tabs are pills; the left/right zones render flat on the bar
+    Called once per render cycle (not per tab); owns all layout, positioning and CellRange
+    generation. Only the centre tabs are pills; the left/right zones render flat on the bar
     background with EDGE_PAD cells kept clear at the window edges.
     """
     if not tabs:
         return []
 
-    from .content import get_engine_callables
-    from .config import get_config
+    from .content import tab_content, zone_content
 
-    tab_content_func, left_zone_func, right_zone_func = get_engine_callables()
-    cfg = get_config()
-    border_left = cfg.pill_border_left
-    border_right = cfg.pill_border_right
-    spacing = cfg.pill_spacing
+    opts = get_options()
+    border_left = opts.tab_bar_pill_border_left
+    border_right = opts.tab_bar_pill_border_right
+    spacing = opts.tab_bar_pill_spacing
 
-    is_drag = False
-    try:
-        boss = get_boss()
-        tm = boss.active_tab_manager if boss else None
-        is_drag = tm is not None and getattr(tm, 'tab_being_dropped', None) is not None
-    except Exception:
-        pass
+    tm = get_boss().active_tab_manager
+    is_drag = tm is not None and tm.tab_being_dropped is not None
 
     center_tabs: list[tuple[int, TabBarData]] = [(i + 1, tab) for i, tab in enumerate(tabs)]
 
     center_contents: list[TabContent] = []
     for visual_idx, tab in center_tabs:
         try:
-            content = tab_content_func(tab, visual_idx, tab.is_active, draw_data)
+            content = tab_content(tab, visual_idx, tab.is_active, draw_data)
         except Exception as e:
             log_error(f'zones: tab_content failed: {e}')
             fg = as_rgb(draw_data.tab_fg(tab))
@@ -218,11 +175,11 @@ def draw_tab_with_zones(
     active_tab = next((t for t in tabs if t.is_active), tabs[0])
 
     left_max = max(0, center_start - ZONE_GAP - EDGE_PAD)
-    if left_zone_func and left_max > MIN_ZONE_WIDTH:
+    if left_max > MIN_ZONE_WIDTH:
         try:
-            left_content = left_zone_func(active_tab, draw_data, left_max)
+            left_content = zone_content(active_tab, draw_data, left_max, True)
         except Exception as e:
-            log_error(f'zones: left_zone_content failed: {e}')
+            log_error(f'zones: left zone_content failed: {e}')
             left_content = None
 
         if left_content is not None:
@@ -253,15 +210,15 @@ def draw_tab_with_zones(
 
     center_end = center_start + center_width
     right_max = max(0, screen.columns - center_end - ZONE_GAP - EDGE_PAD)
-    if right_zone_func and right_max > MIN_ZONE_WIDTH:
+    if right_max > MIN_ZONE_WIDTH:
         try:
-            right_content = right_zone_func(active_tab, draw_data, right_max)
+            right_content = zone_content(active_tab, draw_data, right_max, False)
         except Exception as e:
-            log_error(f'zones: right_zone_content failed: {e}')
+            log_error(f'zones: right zone_content failed: {e}')
             right_content = None
 
         if right_content is not None:
-            zone_w = min(_zone_width(right_content, mirrored=True), right_max)
+            zone_w = min(_zone_width(right_content), right_max)
             screen.cursor.x = max(center_end + ZONE_GAP, screen.columns - EDGE_PAD - zone_w)
             _draw_zone(screen, right_content, mirrored=True)
 

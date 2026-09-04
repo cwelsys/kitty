@@ -1424,9 +1424,6 @@ class Parser:
     def tab_bar_left_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_left_icon'] = tab_bar_content_separator(val)
 
-    def tab_bar_left_min_text_budget(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_left_min_text_budget'] = positive_int(val)
-
     def tab_bar_left_mode_indicator(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_left_mode_indicator'] = to_bool(val)
 
@@ -1445,14 +1442,11 @@ class Parser:
     def tab_bar_min_tabs(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_min_tabs'] = tab_bar_min_tabs(val)
 
+    def tab_bar_min_text_budget(self, val: str, ans: dict[str, typing.Any]) -> None:
+        ans['tab_bar_min_text_budget'] = positive_int(val)
+
     def tab_bar_mode_bg(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_mode_bg'] = to_color_or_none(val)
-
-    def tab_bar_mode_fg(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_mode_fg'] = to_color_or_none(val)
-
-    def tab_bar_mode_indicator(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_mode_indicator'] = to_bool(val)
 
     def tab_bar_mode_name(self, val: str, ans: dict[str, typing.Any]) -> None:
         for k, v in tab_bar_mode_name(val):
@@ -1464,17 +1458,11 @@ class Parser:
     def tab_bar_pill_border_right(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_pill_border_right'] = tab_bar_content_separator(val)
 
-    def tab_bar_pill_separator(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_pill_separator'] = tab_bar_content_separator(val)
-
     def tab_bar_pill_spacing(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_pill_spacing'] = positive_int(val)
 
     def tab_bar_right_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_right_icon'] = tab_bar_content_separator(val)
-
-    def tab_bar_right_min_text_budget(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_right_min_text_budget'] = positive_int(val)
 
     def tab_bar_right_ssh_icon(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_right_ssh_icon'] = tab_bar_content_separator(val)
@@ -1498,9 +1486,6 @@ class Parser:
 
     def tab_bar_zone_right(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_zone_right'] = tab_bar_zone(val)
-
-    def tab_bar_zone_text_bg(self, val: str, ans: dict[str, typing.Any]) -> None:
-        ans['tab_bar_zone_text_bg'] = to_color_or_none(val)
 
     def tab_bar_zone_text_fg(self, val: str, ans: dict[str, typing.Any]) -> None:
         ans['tab_bar_zone_text_fg'] = to_color_or_none(val)

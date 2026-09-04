@@ -64,8 +64,7 @@ class TabBarData(NamedTuple):
     session_name: str = ''
     active_session_name: str = ''
     override_title: str = ''
-    program_title: str = ''
-    shell_title: str = ''
+    cmd_title: str = ''
     tab_name: str = ''
 
 
@@ -689,7 +688,7 @@ def load_custom_draw_tab() -> DrawTabFunc:
 def clear_caches() -> None:
     load_custom_draw_tab.clear_cached()
     load_custom_draw_tab_module.clear_cached()
-    from .tab_bar_zones import clear_caches as clear_zones
+    from .tab_bar_zones.config import clear_caches as clear_zones
 
     clear_zones()
 
@@ -810,7 +809,7 @@ class TabBar:
         elif ts == 'custom':
             self.draw_func = load_custom_draw_tab()
         elif ts == 'zones':
-            from .tab_bar_zones import draw_tab_with_zones
+            from .tab_bar_zones.draw import draw_tab_with_zones
 
             self._zones_draw = draw_tab_with_zones
             self.draw_func = draw_tab_with_fade

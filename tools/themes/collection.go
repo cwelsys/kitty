@@ -320,8 +320,6 @@ var AllColorSettingNames = map[string]bool{ // {{{
 	"tab_bar_git_directory_color":          true,
 	"tab_bar_margin_color":                 true,
 	"tab_bar_mode_bg":                      true,
-	"tab_bar_mode_fg":                      true,
-	"tab_bar_zone_text_bg":                 true,
 	"tab_bar_zone_text_fg":                 true,
 	"url_color":                            true,
 	"visual_bell_color":                    true,

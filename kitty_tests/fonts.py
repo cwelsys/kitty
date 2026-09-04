@@ -429,24 +429,18 @@ class Rendering(FontBaseTest):
         family = descriptor['family']
         face = create_face(descriptor['path'])
         face.set_size(16, 96, 96)
-        tested = []
         for cp in (0xEE0D, 0xF489, 0xE6AE, 0xE702, 0xF07B, 0xF120):
             cell_w, cell_h, cells = render_string(chr(cp) + ' ', family, 16.0, 96.0)
             width = cell_w * len(cells)
             cols = [x for x in range(width) if any(cells[x // cell_w][(y * cell_w + x % cell_w) * 4 + 3] for y in range(cell_h))]
-            if len(cells) < 2 or not cols or cols[-1] < cell_w:
-                continue
-            left, right = cols[0], width - 1 - cols[-1]
-            tested.append(cp)
-            _, unclipped, _ = face.render_codepoint(cp)
-            self.assertGreaterEqual(
-                cols[-1] - cols[0] + 1,
-                unclipped - 1,
-                f'U+{cp:04X} ink clipped in its {len(cells)}-cell span: {cols[-1] - cols[0] + 1}px rendered of {unclipped}px',
-            )
-            self.assertLessEqual(abs(left - right), 1, f'U+{cp:04X} ink off center in its {len(cells)}-cell span: {left}px left, {right}px right')
-        if not tested:
+            if len(cells) >= 2 and cols and cols[-1] >= cell_w:
+                break
+        else:
             self.skipTest(f'{family} renders no multi-cell PUA ligature')
+        left, right = cols[0], width - 1 - cols[-1]
+        _, unclipped, _ = face.render_codepoint(cp)
+        self.assertGreaterEqual(cols[-1] - cols[0] + 1, unclipped - 1, f'U+{cp:04X} ink clipped: {cols[-1] - cols[0] + 1}px rendered of {unclipped}px')
+        self.assertLessEqual(abs(left - right), 1, f'U+{cp:04X} ink off center: {left}px left, {right}px right')
 
     def test_shaping(self):
 

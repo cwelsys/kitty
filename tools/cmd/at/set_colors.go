@@ -264,8 +264,6 @@ var nullable_colors = map[string]bool{
 	"tab_bar_background":                   true,
 	"tab_bar_margin_color":                 true,
 	"tab_bar_mode_bg":                      true,
-	"tab_bar_mode_fg":                      true,
-	"tab_bar_zone_text_bg":                 true,
 	"tab_bar_zone_text_fg":                 true,
 	"visual_bell_color":                    true,
 	"window_title_bar_active_background":   true,

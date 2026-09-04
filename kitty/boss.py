@@ -1193,19 +1193,8 @@ class Boss:
             self.child_monitor.mark_for_close(window.id)
 
     def reap_zmx_session(self, window: Window) -> None:
-        """
-        Kill the zmx session backing a window that is being deliberately closed.
-
-        Called from mark_window_for_close, and from on_os_window_closed for each
-        window of an OS window going down whole, which does not pass through
-        mark_window_for_close. Quit is the latter: it marks every OS window
-        IMPERATIVE_CLOSE_REQUESTED and closes them by that path.
-
-        Natural child death does not pass through here, which is what we want:
-        when the shell exits via `exit` the zmx session ends on its own and there
-        is nothing to kill.
-        """
-        from .persist import reap_command, should_reap
+        "Kill the zmx session of a window being deliberately closed. Natural child death ends the session by itself"
+        from .persist import should_reap
 
         if not should_reap(window.user_vars):
             return
@@ -1213,15 +1202,13 @@ class Boss:
         if not exe:
             log_error('kitty: cannot reap zmx session, zmx not found')
             return
-        cmd = reap_command(window.user_vars.get('zmx_session', ''), exe)
-        if not cmd:
-            return
         import subprocess
 
+        session = window.user_vars['zmx_session']
         try:
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            subprocess.Popen([exe, 'kill', session], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         except OSError as err:
-            log_error(f'kitty: failed to reap zmx session {cmd[-1]}: {err}')
+            log_error(f'kitty: failed to reap zmx session {session}: {err}')
 
     @ac('win', 'Close the currently active window')
     def close_window(self) -> None:

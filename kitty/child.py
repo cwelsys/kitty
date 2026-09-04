@@ -7,6 +7,7 @@ import termios
 from collections import defaultdict
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from contextlib import contextmanager, suppress
+from functools import cached_property
 from itertools import count
 from time import monotonic
 from typing import TYPE_CHECKING, Any, DefaultDict, Optional, TypedDict
@@ -351,7 +352,6 @@ class Child:
         persist_session: str = '',
     ):
         self.persist_session = persist_session
-        self._persist_root_pid: int | None = None
         self.is_clone_launch = is_clone_launch
         self.id = next(child_counter)
         self.add_listen_on_env_var = add_listen_on_env_var
@@ -566,46 +566,25 @@ class Child:
             ans['cwd'] = cwd_of_process(pid) or None
         return ans
 
-    def resolve_persist_root_pid(self) -> int:
-        from .persist import parse_session_pid, session_pid_command
+    @cached_property
+    def persist_root_pid(self) -> int:
+        "Pid of the process zmx started for this window's session, else 0. Failure is cached too: this is on the tab bar redraw path"
+        from .persist import parse_session_pid
 
-        exe = which('zmx')
-        if not exe:
+        if not self.persist_session or not (exe := which('zmx')):
             return 0
         try:
             import subprocess
 
-            cp = subprocess.run(session_pid_command(self.persist_session, exe), capture_output=True, timeout=2, encoding='utf-8', errors='replace')
+            cp = subprocess.run([exe, 'list', '--where', f'name={self.persist_session}'], capture_output=True, timeout=2, encoding='utf-8', errors='replace')
         except Exception as err:
             log_error(f'kitty: could not resolve zmx session {self.persist_session}: {err}')
             return 0
         return parse_session_pid(cp.stdout, self.persist_session)
 
     @property
-    def persist_root_pid(self) -> int:
-        """
-        Pid of the process the persistence wrapper started for this window, else 0.
-
-        Stable for the session's lifetime -- the session ends when this process
-        exits -- so it is resolved once. Failure is cached as 0 too: this is on
-        the tab bar's redraw path and must never fork zmx repeatedly.
-        """
-        if not self.persist_session:
-            return 0
-        if self._persist_root_pid is None:
-            self._persist_root_pid = self.resolve_persist_root_pid()
-        return self._persist_root_pid
-
-    @property
     def effective_pgrp(self) -> int:
-        """
-        Foreground process group of the terminal the real program runs on.
-
-        For a persisted window that terminal is not the one kitty created: the
-        wrapper's client sits on kitty's pty while the program runs on a pty
-        owned by the wrapper's daemon. The kernel still tracks that pty's
-        foreground group, so it can be read without holding a descriptor for it.
-        """
+        "Foreground process group of the pty the program runs on, which for a persisted window is zmx's, not kitty's"
         with suppress(Exception):
             if pid := self.persist_root_pid:
                 return tty_foreground_process_group(pid)

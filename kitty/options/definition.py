@@ -2189,18 +2189,16 @@ opt(
     'cwd_git',
     option_type='tab_bar_zone',
     long_text='Ordered content kinds for the left tab-bar zone (zones style). '
-    'Space-separated; known kinds: cwd, git, cwd_git, title, tab_label. Empty disables the zone.',
+    'Space-separated; known kinds: cwd_git, title, tab_label. Empty disables the zone.',
 )
 opt('tab_bar_zone_right', '', option_type='tab_bar_zone', long_text='Ordered content kinds for the right tab-bar zone (zones style).')
 opt('tab_bar_left_mode_indicator', 'no', option_type='to_bool', long_text='Show the keyboard-mode indicator in the left zone.')
-opt('tab_bar_left_min_text_budget', '4', option_type='positive_int', long_text='Minimum text cells required before the left zone renders text.')
-opt('tab_bar_right_min_text_budget', '4', option_type='positive_int', long_text='Minimum text cells required before the right zone renders text.')
+opt('tab_bar_min_text_budget', '4', option_type='positive_int', long_text='Minimum text cells required before a zone renders text.')
 opt('tab_bar_sticky_last_cmd', 'no', option_type='to_bool', long_text='Keep showing the last command title in the title zone when the shell goes idle.')
 opt('tab_bar_content_separator', '" · "', option_type='tab_bar_content_separator', long_text='Separator string between multiple content kinds in a zone.')
 opt('tab_bar_ellipsis', '…', option_type='tab_bar_content_separator', long_text='Ellipsis string used when truncating zone text.')
 opt('tab_bar_pill_border_left', '', option_type='tab_bar_content_separator', long_text='Left border glyph of a tab pill.')
 opt('tab_bar_pill_border_right', '', option_type='tab_bar_content_separator', long_text='Right border glyph of a tab pill.')
-opt('tab_bar_pill_separator', '', option_type='tab_bar_content_separator', long_text='Separator glyph between a pill icon and text.')
 opt('tab_bar_pill_spacing', '1', option_type='positive_int', long_text='Cells of spacing between center tab pills.')
 opt('tab_bar_left_icon', '', option_type='tab_bar_content_separator', long_text='Left zone icon glyph.')
 opt('tab_bar_left_ssh_icon', '', option_type='tab_bar_content_separator', long_text='Left zone icon glyph over SSH.')
@@ -2231,11 +2229,8 @@ opt('tab_bar_git_branch_color', '#cba6f7', option_type='to_color', long_text='Co
 opt('tab_bar_git_branch_icon_color', '#9399b2', option_type='to_color', long_text='Color of the git branch icon.')
 opt('tab_bar_git_directory_color', '#cdd6f4', option_type='to_color', long_text='Color of the working-directory text.')
 
-opt('tab_bar_zone_text_bg', 'none', option_type='to_color_or_none', long_text='Background of zone text sections (none = use inactive_tab_background).')
 opt('tab_bar_zone_text_fg', 'none', option_type='to_color_or_none', long_text='Foreground of zone text sections (none = use foreground).')
 opt('tab_bar_mode_bg', 'none', option_type='to_color_or_none', long_text='Background of the keyboard-mode indicator (none = use active_tab_background).')
-opt('tab_bar_mode_fg', 'none', option_type='to_color_or_none', long_text='Foreground of the keyboard-mode indicator (none = use active_tab_foreground).')
-opt('tab_bar_mode_indicator', 'yes', option_type='to_bool', long_text='Enable the keyboard-mode indicator entirely.')
 opt(
     '+tab_bar_mode_name',
     'leader 󰌌',

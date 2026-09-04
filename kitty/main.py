@@ -566,9 +566,8 @@ def set_locale() -> None:
 
 def kitty_main(called_from_panel: bool = False) -> None:
     running_in_kitty(True)
-    from .persist import drop_inherited_session
-
-    drop_inherited_session(os.environ)
+    # inherited from a zmx session, it would make zmx attach hand kitty's first window to the launching terminal
+    os.environ.pop('ZMX_SESSION', None)
 
     args = sys.argv[1:]
     try:

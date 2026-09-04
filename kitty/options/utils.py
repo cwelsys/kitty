@@ -821,16 +821,21 @@ def visual_window_select_characters(x: str) -> str:
     return ans
 
 
-def tab_separator(x: str) -> str:
+def strip_quotes(x: str) -> str:
     for q in '\'"':
         if x.startswith(q) and x.endswith(q):
-            x = x[1:-1]
-            if not x:
-                return ''
-            break
-    if not x.strip():
-        x = ('\xa0' * len(x)) if x else default_tab_separator
+            return x[1:-1]
     return x
+
+
+def tab_separator(x: str) -> str:
+    q = strip_quotes(x)
+    if q.strip():
+        return q
+    if q:
+        return '\xa0' * len(q)
+    # an explicitly quoted empty string means no separator, an empty value means the default
+    return '' if q != x else default_tab_separator
 
 
 def tab_bar_edge(x: str) -> int:
@@ -853,35 +858,29 @@ def tab_bar_min_tabs(x: str) -> int:
     return max(1, positive_int(x))
 
 
-TAB_CONTENT_KINDS = frozenset({'cwd', 'git', 'cwd_git', 'title', 'tab_label'})
+TAB_CONTENT_KINDS = ('cwd_git', 'title', 'tab_label')
+
+
+def whitelisted_words(x: str, valid: Sequence[str], option_name: str) -> tuple[str, ...]:
+    ans = []
+    for part in x.split():
+        if part not in valid:
+            log_error(f'Ignoring unknown {option_name} value: {part}')
+            continue
+        ans.append(part)
+    return tuple(ans)
 
 
 def tab_bar_zone(x: str) -> tuple[str, ...]:
-    kinds = []
-    for part in x.split():
-        if part not in TAB_CONTENT_KINDS:
-            log_error(f'Ignoring unknown tab bar content kind: {part}')
-            continue
-        kinds.append(part)
-    return tuple(kinds)
+    return whitelisted_words(x, TAB_CONTENT_KINDS, 'tab_bar_zone')
 
 
 def tab_bar_content_separator(x: str) -> str:
-    for q in '\'"':
-        if x.startswith(q) and x.endswith(q):
-            return x[1:-1]
-    return x
+    return strip_quotes(x)
 
 
 def tab_bar_icon_elements(x: str) -> tuple[str, ...]:
-    valid = ('index', 'icon')
-    result = []
-    for part in x.split():
-        if part not in valid:
-            log_error(f'Ignoring unknown tab_bar_icon_elements value: {part}')
-            continue
-        result.append(part)
-    return tuple(result)
+    return whitelisted_words(x, ('index', 'icon'), 'tab_bar_icon_elements')
 
 
 def tab_fade(x: str) -> tuple[float, ...]:
@@ -1276,26 +1275,18 @@ def narrow_symbols(val: str) -> Iterable[tuple[tuple[int, int], int]]:
         yield x, int(y or 1)
 
 
+def name_value_pair(val: str, option_name: str, syntax: str) -> tuple[str, str]:
+    name, sep, value = val.strip().partition(' ')
+    if not sep or not value.strip():
+        raise ValueError(f'{option_name} needs: {syntax}, got: {val!r}')
+    return name, value.strip()
+
+
 def tab_bar_icon(val: str) -> Iterable[tuple[str, str]]:
-    name, sep, glyph = val.strip().partition(' ')
-    if not sep or not glyph.strip():
-        raise ValueError(f'tab_bar_icon needs: <exe-name> <glyph>, got: {val!r}')
-    yield name, glyph.strip()
+    yield name_value_pair(val, 'tab_bar_icon', '<exe-name> <glyph>')
 
 
-GIT_STATUS_FIELDS = frozenset(
-    {
-        'stashed',
-        'deleted',
-        'staged',
-        'modified',
-        'renamed',
-        'untracked',
-        'conflicted',
-        'ahead',
-        'behind',
-    }
-)
+GIT_STATUS_FIELDS = ('stashed', 'deleted', 'staged', 'modified', 'renamed', 'untracked', 'conflicted', 'ahead', 'behind')
 
 
 def tab_bar_git_status(val: str) -> Iterable[tuple[str, tuple[str, Color]]]:
@@ -1309,10 +1300,7 @@ def tab_bar_git_status(val: str) -> Iterable[tuple[str, tuple[str, Color]]]:
 
 
 def tab_bar_mode_name(val: str) -> Iterable[tuple[str, str]]:
-    mode, sep, name = val.strip().partition(' ')
-    if not sep or not name.strip():
-        raise ValueError(f'tab_bar_mode_name needs: <mode> <display>, got: {val!r}')
-    yield mode, name.strip()
+    yield name_value_pair(val, 'tab_bar_mode_name', '<mode> <display>')
 
 
 def parse_key_action(action: str, action_type: MapType = MapType.MAP) -> KeyAction:

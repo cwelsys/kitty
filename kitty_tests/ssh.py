@@ -26,9 +26,6 @@ def files_in(path):
             yield os.path.relpath(os.path.join(record[0], f), path)
 
 
-SKIP_ZSH_SSH_BOOTSTRAP = True
-
-
 class SSHKitten(BaseTest):
     @retry_on_failure()
     def test_basic_pty_operations(self):
@@ -273,8 +270,7 @@ shell_name=$(command basename "$login_shell")
     @retry_on_failure()
     def test_ssh_shell_integration(self):
         available_login_shells = {'fish', 'zsh', 'bash'} & set(self.all_possible_sh)
-        if SKIP_ZSH_SSH_BOOTSTRAP:
-            available_login_shells.discard('zsh')
+        available_login_shells.discard('zsh')
         # Use one POSIX-shell bootstrap and one Python bootstrap as representatives.
         # Exhaustive bootstrap-shell compatibility is covered by
         # test_ssh_bootstrap_with_different_launchers; here we only need to verify

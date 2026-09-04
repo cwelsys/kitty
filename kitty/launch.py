@@ -817,26 +817,11 @@ def _launch(
             if exe:
                 final_cmd[0] = exe
         kw['cmd'] = final_cmd
-    persist_session_name = ''
-    persist_owned = False
     explicit_persist = bool(opts.persist or opts.persist_name)
     if explicit_persist and opts.type in non_window_launch_types:
         log_error(f'kitty: ignoring --persist for --type={opts.type}, which creates no window')
         explicit_persist = False
-    want_persist = explicit_persist or (get_options().persist_windows and opts.type not in auto_persist_excluded_types)
-    if want_persist and not opts.no_persist:
-        from .persist import make_session_name, zmx_command
-
-        if which('zmx'):
-            if opts.persist_name:
-                persist_session_name = opts.persist_name
-            else:
-                cwd_for_name = kw['cwd'] or (source_child.foreground_cwd if source_child else '') or ''
-                persist_session_name = make_session_name(cwd_for_name)
-                persist_owned = True
-            kw['cmd'] = zmx_command(persist_session_name, kw['cmd'])
-        else:
-            log_error('kitty: --persist requested but zmx not found on PATH; launching directly')
+    want_persist = not opts.no_persist and (explicit_persist or opts.type not in auto_persist_excluded_types)
     if force_window_launch and opts.type not in non_window_launch_types:
         opts.type = 'window'
     if next_to and opts.type in non_window_launch_types:
@@ -887,6 +872,9 @@ def _launch(
         else:
             tab = tab_for_window(boss, opts, target_tab, next_to, add_to_session)
         watchers = load_watch_modules(opts.watcher)
+        persist_session, persist_owned = '', False
+        if want_persist:
+            kw['cmd'], persist_session, persist_owned = tab._wrap_in_zmx(kw['cmd'], kw['cwd'], kw['cwd_from'], opts.persist_name, auto=not explicit_persist)
         with Window.set_ignore_focus_changes_for_new_windows(opts.keep_focus):
             new_window: Window = tab.new_window(
                 env=env or None,
@@ -894,7 +882,8 @@ def _launch(
                 is_clone_launch=is_clone_launch,
                 next_to=next_to,
                 startup_command_via_shell_integration=startup_command_via_shell_integration,
-                persist_session=persist_session_name,
+                persist_session=persist_session,
+                persist_owned=persist_owned,
                 **kw,
             )
             new_window.created_in_session_name = add_to_session
@@ -927,9 +916,6 @@ def _launch(
                 new_window.creation_spec = new_window.creation_spec._replace(user_vars=vars)
             for key, val in vars:
                 new_window.set_user_var(key, val)
-        if persist_session_name:
-            new_window.set_user_var('zmx_session', persist_session_name)
-            new_window.set_user_var('zmx_owned', '1' if persist_owned else '0')
         return new_window
     return None
 

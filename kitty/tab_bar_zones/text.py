@@ -1,9 +1,4 @@
-"""
-Text helpers for the tab-bar zones engine.
-
-All functions are stateless: home and ellipsis are explicit parameters
-rather than globals or config reads, so callers (content.py) supply them.
-"""
+"""Stateless text helpers for the tab-bar zones engine."""
 
 from kitty.fast_data_types import wcswidth
 
@@ -21,26 +16,14 @@ def _ends_with_pua(s: str) -> bool:
 
 
 def pad_pua_icon(icon: str) -> str:
-    """Append a space to icons ending in a Private Use Area glyph.
-
-    kitty renders a PUA glyph followed by a space as a single two-cell
-    ligature, centering the glyph over both cells and swallowing the space.
-    The extra space restores a visible gap between the icon and what
-    follows, without shrinking the glyph the way narrow_symbols would.
-    """
+    """Pad PUA icons with a space: kitty renders glyph+space as one two-cell ligature."""
     if _ends_with_pua(icon):
         return icon + ' '
     return icon
 
 
 def _take_width(text: str, budget: int) -> str:
-    """Longest prefix of text whose display width is <= budget.
-
-    A PUA glyph and the space pad_pua_icon put after it are one two-cell
-    ligature, so they are taken or dropped together. Keeping the glyph alone
-    would leave the font drawing a two-cell glyph into a single cell, which
-    shows up as an icon sliced down the middle.
-    """
+    """Longest prefix of text whose display width is <= budget; PUA glyph + pad stay together."""
     out = []
     w = 0
     i = 0

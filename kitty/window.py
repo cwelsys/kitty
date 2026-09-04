@@ -110,6 +110,7 @@ from .utils import (
     docs_url,
     key_val_matcher,
     kitty_ansi_sanitizer_pat,
+    known_shell_names,
     log_error,
     open_cmd,
     open_url,
@@ -123,7 +124,6 @@ from .utils import (
     sanitize_url_for_display_to_user,
     shlex_split,
 )
-from .cwd_policy import choose_cwd, is_shell_exe
 
 MatchPatternType = Union[Pattern[str], tuple[Pattern[str], Optional[Pattern[str]]]]
 
@@ -784,7 +784,6 @@ class Window:
         self.override_title = override_title
         self.default_title = os.path.basename(child.argv[0] or appname)
         self.child_title = self.default_title
-        self.program_title: str = ''
         self.shell_title: str = ''
         self.title_stack: Deque[str] = deque(maxlen=10)
         self.user_vars: dict[str, str] = {}
@@ -893,6 +892,10 @@ class Window:
     def apply_options(self, is_active: bool) -> None:
         self.update_effective_padding()
         self.screen.color_profile.reload_from_opts()
+
+    @property
+    def program_title(self) -> str:
+        return '' if self.child_title == self.default_title else self.child_title
 
     @property
     def title(self) -> str:
@@ -1345,7 +1348,6 @@ class Window:
     def set_shell_title(self, title: str) -> None:
         self.shell_title = title
         if not title:
-            self.program_title = ''
             self.child_title = ''
         self.title_updated()
 
@@ -1566,7 +1568,6 @@ class Window:
 
     def title_changed(self, new_title: memoryview | None, is_base64: bool = False) -> None:
         self.child_title = process_title_from_child(new_title or memoryview(b''), is_base64, self.default_title)
-        self.program_title = self.child_title if self.child_title != self.default_title else ''
         self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
         if self.override_title is None:
             self.title_updated()
@@ -1923,7 +1924,6 @@ class Window:
             if pop:
                 if self.title_stack:
                     self.child_title = self.title_stack.pop()
-                    self.program_title = self.child_title if self.child_title != self.default_title else ''
                     self.call_watchers(self.watchers.on_title_change, {'title': self.child_title, 'from_child': True})
                     self.title_updated()
             else:
@@ -2139,29 +2139,21 @@ class Window:
         if pid is None or pid == self.child.effective_pid:
             return False
         exe = self.child.get_foreground_exe(oldest)
-        return bool(exe) and is_shell_exe(exe)
+        return bool(exe) and os.path.basename(exe) in known_shell_names()
 
     def resolved_cwd(self, oldest: bool = False, request_type: 'CwdRequestType' = CwdRequestType.current) -> str:
         reported = path_from_osc7_url(self.screen.last_reported_cwd) if self.screen.last_reported_cwd else ''
-        if request_type is CwdRequestType.last_reported:
-            mode = 'last_reported'
-        elif request_type in (CwdRequestType.oldest, CwdRequestType.root):
-            mode = 'prompt_gated'
-        else:
-            mode = 'current'
         if request_type is CwdRequestType.root:
             heuristic = self.get_cwd_of_root_child() or ''
         else:
             heuristic = self.get_cwd_of_child(oldest=oldest) or ''
-        nested = self._foreground_is_nested_shell(oldest) if mode == 'current' else False
-        return choose_cwd(
-            reported=reported,
-            child_is_remote=self.child_is_remote,
-            at_prompt=self.at_prompt,
-            foreground_is_nested_shell=nested,
-            heuristic_cwd=heuristic,
-            mode=mode,
-        )
+        if not reported or self.child_is_remote:
+            return heuristic
+        if request_type is CwdRequestType.last_reported:
+            return reported
+        if request_type in (CwdRequestType.oldest, CwdRequestType.root):
+            return reported if self.at_prompt else heuristic
+        return heuristic if self._foreground_is_nested_shell(oldest) else reported
 
     def get_exe_of_child(self, oldest: bool = False) -> str:
         return self.child.get_foreground_exe(oldest) or self.child.argv[0]
@@ -2370,8 +2362,6 @@ class Window:
             'is_active': is_active,
             'title': self.title,
             'title_overridden': self.override_title is not None,
-            'program_title': self.program_title,
-            'shell_title': self.shell_title,
             'pid': self.child.pid,
             'cwd': self.child.current_cwd or self.child.cwd,
             'cmdline': self.child.cmdline,

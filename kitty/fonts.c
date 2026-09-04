@@ -1240,18 +1240,15 @@ apply_horizontal_alignment(
     unsigned canvas_height,
     unsigned num_cells,
     unsigned num_glyphs,
-    bool was_colored,
-    bool ink_centered) {
+    bool was_colored) {
     int delta = 0;
 #ifdef __APPLE__
     if (num_cells == 2 && was_colored) center_glyph = true;
-#else
-    (void)was_colored;
 #endif
     if (rf.subscale_n && rf.subscale_d && rf.align.horizontal && rf.subscale_n < rf.subscale_d) {
         delta = max_render_width - ri.rendered_width;
         if (rf.align.horizontal == 2) delta /= 2;
-    } else if (center_glyph && !ink_centered && num_glyphs && num_cells > 1 && ri.rendered_width < max_render_width) {
+    } else if (center_glyph && was_colored && num_glyphs && num_cells > 1 && ri.rendered_width < max_render_width) {
         unsigned half = (max_render_width - ri.rendered_width) / 2;
         if (half > 1) delta = half;
     }
@@ -1416,7 +1413,7 @@ render_group(
         canvas = fg->canvas.buf;
     }
     const bool ink_centered = center_glyph && !was_colored && num_glyphs && num_scaled_cells > 1;
-    apply_horizontal_alignment(canvas, rf, center_glyph, ri, canvas_width, scaled_metrics.cell_height, num_scaled_cells, num_glyphs, was_colored, ink_centered);
+    apply_horizontal_alignment(canvas, rf, center_glyph, ri, canvas_width, scaled_metrics.cell_height, num_scaled_cells, num_glyphs, was_colored);
     if (ink_centered) {
         apply_horizontal_ink_centering(canvas, ri.canvas_width, scaled_metrics.cell_height);
         apply_vertical_centering(canvas, ri.canvas_width, scaled_metrics.cell_height);
@@ -2138,7 +2135,7 @@ render_line(FONTS_DATA_HANDLE fg_, Line *line, index_type lnum, Cursor *cursor, 
             i - first_cell_in_run,                                                                                      \
             run_font,                                                                                                   \
             false,                                                                                                      \
-            center_glyph,                                                                                               \
+            false,                                                                                                      \
             cursor_offset,                                                                                              \
             disable_ligature_strategy,                                                                                  \
             line->text_cache,                                                                                           \
@@ -2146,7 +2143,6 @@ render_line(FONTS_DATA_HANDLE fg_, Line *line, index_type lnum, Cursor *cursor, 
     }
     FontGroup *fg = (FontGroup *)fg_;
     RunFont basic_font = {.scale = 1, .font_idx = NO_FONT}, run_font = basic_font, cell_font = basic_font;
-    bool center_glyph = false;
     bool disable_ligature_at_cursor = cursor != NULL && disable_ligature_strategy == DISABLE_LIGATURES_CURSOR;
     index_type first_cell_in_run, i;
     for (i = 0, first_cell_in_run = 0; i < line->xnum; i++) {

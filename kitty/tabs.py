@@ -24,7 +24,6 @@ from .fast_data_types import (
     GLFW_PRESS,
     GLFW_RELEASE,
     add_tab,
-    add_timer,
     attach_window,
     buffer_keys_in_window,
     current_focused_os_window_id,
@@ -500,9 +499,8 @@ class Tab:  # {{{
             t.last_focused_window_with_progress_id,
             t.created_in_session_name,
             t.active_session_name,
-            override_title=active_window.override_title or '' if active_window else '',
-            program_title=getattr(active_window, 'program_title', '') if active_window else '',
-            shell_title=getattr(active_window, 'shell_title', '') if active_window else '',
+            override_title=(active_window.override_title or '') if active_window else '',
+            cmd_title=(active_window.program_title or active_window.shell_title) if active_window else '',
             tab_name=t.name or '',
         )
 
@@ -821,27 +819,26 @@ class Tab:  # {{{
         self.mark_tab_bar_dirty()
         self.relayout()
 
-    def _wrap_in_zmx(self, cmd: list[str] | None, cwd: str | None, cwd_from: CwdRequest | None) -> tuple[list[str] | None, str, bool]:
-        """
-        Rewrite cmd to run under a generated zmx session, honouring persist_windows.
+    def _wrap_in_zmx(
+        self, cmd: list[str] | None, cwd: str | None, cwd_from: CwdRequest | None, name: str = '', auto: bool = True
+    ) -> tuple[list[str] | None, str, bool]:
+        "Returns (cmd, session_name, kitty_owns_session). A missing zmx must never cost the user a window"
+        if auto:
+            from .fast_data_types import get_os_window_size
 
-        Returns (cmd, session_name, kitty_owns_session). A missing zmx binary must never
-        cost the user a window, so it degrades to launching cmd unchanged.
-        """
-        from .fast_data_types import get_os_window_size
-        from .persist import auto_persist_applies
-
-        sz = get_os_window_size(self.os_window_id)
-        if not auto_persist_applies(get_options().persist_windows, bool(sz and sz['is_layer_shell'])):
-            return cmd, '', False
+            sz = get_os_window_size(self.os_window_id)
+            # panels are excluded: zmx clears the screen and resets modes on attach
+            if not get_options().persist_windows or bool(sz and sz['is_layer_shell']):
+                return cmd, '', False
         if not which('zmx'):
-            log_error('kitty: persist_windows is enabled but zmx was not found on PATH; launching directly')
+            log_error('kitty: zmx not found on PATH; launching directly')
             return cmd, '', False
-        from .persist import make_session_name, zmx_command
+        owned = not name
+        if owned:
+            from .persist import make_session_name
 
-        cwd_for_name = cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.path.abspath(self.cwd or '.')
-        session_name = make_session_name(cwd_for_name)
-        return zmx_command(session_name, cmd), session_name, True
+            name = make_session_name(cwd or (cwd_from.cwd_of_child if cwd_from else '') or os.path.abspath(self.cwd or '.'))
+        return ['zmx', 'attach', name, *(cmd or ())], name, owned
 
     def new_window(
         self,
@@ -870,11 +867,10 @@ class Tab:  # {{{
         startup_command_via_shell_integration: Sequence[str] | str = (),
         persist: bool = False,
         persist_session: str = '',
+        persist_owned: bool = False,
     ) -> Window:
-        persist_session_name = persist_session
-        persist_owned = False
         if persist:
-            cmd, persist_session_name, persist_owned = self._wrap_in_zmx(cmd, cwd, cwd_from)
+            cmd, persist_session, persist_owned = self._wrap_in_zmx(cmd, cwd, cwd_from)
         cs = WindowCreationSpec(
             use_shell=use_shell,
             cmd=cmd,
@@ -909,7 +905,7 @@ class Tab:  # {{{
             remote_control_fd=remote_control_fd,
             hold_after_ssh=hold_after_ssh,
             startup_command_via_shell_integration=startup_command_via_shell_integration,
-            persist_session=persist_session_name,
+            persist_session=persist_session,
         )
         window = Window(
             self,
@@ -922,8 +918,8 @@ class Tab:  # {{{
             remote_control_passwords=remote_control_passwords,
         )
         window.creation_spec = cs
-        if persist and persist_session_name:
-            window.set_user_var('zmx_session', persist_session_name)
+        if persist_session:
+            window.set_user_var('zmx_session', persist_session)
             window.set_user_var('zmx_owned', '1' if persist_owned else '0')
         # Must add child before laying out so that resize_pty succeeds
         get_boss().add_child(window)
@@ -1361,7 +1357,6 @@ class TabManager:  # {{{
     window_being_dropped: WindowBeingDropped | None = None
     window_drag_target_tab_id: int = 0
     window_drag_over_me: bool = False
-    _deferred_tab_bar_refresh_pending: bool = False
 
     def __init__(self, os_window_id: int, args: CLIOptions, wm_class: str, wm_name: str, startup_session: SessionType | None = None):
         self.os_window_id = os_window_id
@@ -1512,14 +1507,6 @@ class TabManager:  # {{{
         self.mark_tab_bar_dirty()
         if tab is self.active_tab:
             sync_os_window_title(self.os_window_id)
-        if not self._deferred_tab_bar_refresh_pending:
-            self._deferred_tab_bar_refresh_pending = True
-            add_timer(self._deferred_tab_bar_refresh, 0.35, False)
-
-    def _deferred_tab_bar_refresh(self, timer_id: int | None = None) -> None:
-        self._deferred_tab_bar_refresh_pending = False
-        if getattr(self, 'tabs', None):
-            self.mark_tab_bar_dirty()
 
     def resize(self, only_tabs: bool = False) -> None:
         if not only_tabs:
@@ -1753,7 +1740,6 @@ class TabManager:  # {{{
             if idx != desired_idx:
                 for i in range(idx, desired_idx, -1):
                     self.swap_tabs(i, i - 1)
-                idx = desired_idx
         idx = self.tabs.index(t)
         self._set_active_tab(idx)
         self.mark_tab_bar_dirty()

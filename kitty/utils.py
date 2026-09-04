@@ -688,6 +688,18 @@ def func_name(f: Any) -> str:
     return str(f)
 
 
+@lru_cache
+def known_shell_names() -> frozenset[str]:
+    names = {'bash', 'zsh', 'fish', 'sh', 'dash', 'ksh', 'mksh', 'tcsh', 'csh', 'nu', 'elvish', 'xonsh', 'ash', 'pwsh'}
+    with suppress(Exception):
+        names.add(os.path.basename(resolved_shell()[0]))
+    names.add(os.path.basename(shell_path))
+    with suppress(OSError):
+        with open('/etc/shells') as f:
+            names.update(os.path.basename(line.strip()) for line in f if line.strip() and not line.startswith('#'))
+    return frozenset(names)
+
+
 def resolved_shell(opts: Options | None = None) -> list[str]:
     q: str = getattr(opts, 'shell', '.')
     if q == '.':
