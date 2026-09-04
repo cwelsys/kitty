@@ -682,6 +682,8 @@ class TestDataTypes(BaseTest):
                 else:
                     with self.assertRaises(ex, msg=x):
                         makedirs(q)
+        if os.path.expanduser('~') == os.environ.get('KT_ORIGINAL_HOME', os.path.expanduser('~')):
+            self.skipTest('deletes ~/.config, only safe under the HOME-isolated harness: python3 test.py')
         saved = {x: os.environ.get(x) for x in 'KITTY_CONFIG_DIRECTORY XDG_CONFIG_DIRS XDG_CONFIG_HOME'.split()}
         try:
             dot_config = os.path.expanduser('~/.config')

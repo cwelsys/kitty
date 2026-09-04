@@ -795,7 +795,8 @@ def run_tests(report_env: bool = False) -> None:
         if use_parallel:
             python_ok, go_ok = collect_worker_results(worker_pids, worker_procs, read_fds, len(tests_list), go_proc=go_proc)
         elif tests_list:
-            python_ok = run_cli(all_tests, args.verbosity)
+            with env_for_python_tests(report_env):
+                python_ok = run_cli(all_tests, args.verbosity)
             if go_proc is not None:
                 _, go_ok = collect_worker_results([], [], [], 0, go_proc=go_proc)
             else:
