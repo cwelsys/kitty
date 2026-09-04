@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           base=$(sed -n 's/^version: Version = Version(\([0-9]*\), *\([0-9]*\), *\([0-9]*\)).*/\1.\2.\3/p' kitty/constants.py)
           echo "base=$base" >> "$GITHUB_OUTPUT"
-          echo "pkgver=$base.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "pkgver=$base.$(date -u +%Y%m%d%H%M)" >> "$GITHUB_OUTPUT"
 
       - name: seed what setup.py expects a built tree to already have
         run: |
