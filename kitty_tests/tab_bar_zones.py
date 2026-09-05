@@ -105,8 +105,14 @@ class TestTabBarZones(BaseTest):
         self.ae(content._icon_exe_candidates([P(1, 'python3', '-u', '/x/tool.py')], 1, None), ['tool.py', 'python3'])
         self.ae(content._icon_exe_candidates([P(100, '/bin/zsh'), P(200, 'vim')], 100, None), ['vim'])
         self.ae(content._icon_exe_candidates([P(5, '-zsh')], 5, None), ['zsh'])
+        self.ae(content._icon_exe_candidates([P(5, '-zsh')], 5, 'lazygit'), ['lazygit', 'zsh'])
+        self.ae(content._icon_exe_candidates([P(5, '-zsh')], 5, 'read'), ['read', 'zsh'])
         self.ae(content._icon_exe_candidates([{'pid': None, 'cmdline': None}], -1, 'lg'), ['lg'])
         self.ae(content._icon_exe_candidates([], -1, None), [])
+        self.ae(content._icon_exe_candidates([P(10, 'yazi'), P(20, 'nvim', 'a.txt')], 10, 'yazi', tty_pids={20}), ['nvim', 'yazi'])
+        self.ae(content._icon_exe_candidates([P(10, 'yazi'), P(20, 'nvim'), P(30, 'git', 'status')], 10, 'yazi', tty_pids={20}), ['nvim', 'yazi'])
+        self.ae(content._icon_exe_candidates([P(10, 'yazi'), P(20, '/bin/zsh')], 10, 'yazi', tty_pids={20}), ['yazi', 'yazi'])
+        self.ae(content._icon_exe_candidates([P(100, '/bin/zsh'), P(200, 'vim')], 100, None, tty_pids={100, 200}), ['vim'])
 
     def test_icon_exe_candidates_session_wrapper(self):
         from kitty.tab_bar_zones import content

@@ -27,6 +27,7 @@ if is_macos:
     from kitty.fast_data_types import cmdline_of_process as cmdline_
     from kitty.fast_data_types import cwd_of_process as _cwd
     from kitty.fast_data_types import environ_of_process as _environ_of_process
+    from kitty.fast_data_types import fd_path_of_process as _fd_path_of_process
     from kitty.fast_data_types import memory_of_process as _memory_of_process
     from kitty.fast_data_types import ppid_of_process as _ppid_of_process
     from kitty.fast_data_types import process_group_map as _process_group_map
@@ -72,7 +73,19 @@ if is_macos:
                     total += _memory_of_process(p)
             return total
         return -1
+
+    def process_holds_tty(pid: int) -> bool:
+        try:
+            return all(_fd_path_of_process(pid, fd).startswith('/dev/tty') for fd in (0, 1))
+        except OSError:
+            return False
 else:
+
+    def process_holds_tty(pid: int) -> bool:
+        try:
+            return all(os.readlink(f'/proc/{pid}/fd/{fd}').startswith('/dev/pts/') for fd in (0, 1))
+        except OSError:
+            return False
 
     def cmdline_of_pid(pid: int) -> list[str]:
         with open(f'/proc/{pid}/cmdline', 'rb') as f:

@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Collection, Mapping, Sequence
 from functools import lru_cache
+from typing import Any
 
+from ..child import process_holds_tty
 from ..fast_data_types import Color, get_boss, get_options
 from ..options.types import Options
 from ..options.utils import GIT_STATUS_FIELDS
@@ -85,7 +88,7 @@ def _default_shell_name() -> str:
         return ''
 
 
-def _proc_name(p: dict) -> tuple[str, list[str]]:
+def _proc_name(p: Mapping[str, Any]) -> tuple[str, list[str]]:
     """(basename, cmdline) for a ProcessDesc; empty name if unknowable.
 
     cmdline can be transiently unreadable (mid-exec, huge argv); the
@@ -105,11 +108,12 @@ def _proc_name(p: dict) -> tuple[str, list[str]]:
     return '', []
 
 
-def _icon_exe_candidates(procs: 'list[dict]', pgrp: int, proc_var: str | None) -> list[str]:
+def _icon_exe_candidates(procs: Sequence[Mapping[str, Any]], pgrp: int, proc_var: str | None, tty_pids: Collection[int] = ()) -> list[str]:
     """Best-first icon-name candidates for a foreground process group.
 
     Anchored on the group leader (pid == pgrp): it is the process the shell forked for
     the typed command, so it is immune to both transient children and macOS pid wraparound.
+    A descendant in *tty_pids* (owns the terminal on stdin and stdout) overrides the leader.
     """
     shells = known_shell_names()
     candidates: list[str] = []
@@ -130,6 +134,13 @@ def _icon_exe_candidates(procs: 'list[dict]', pgrp: int, proc_var: str | None) -
             main = (name, cmdline)
         elif name:
             shell = (name, cmdline)
+    for p in sorted(procs, key=lambda p: p.get('pid') or 0, reverse=True):
+        if p is leader or p.get('pid') not in tty_pids:
+            continue
+        name, cmdline = _proc_name(p)
+        if name and name not in shells:
+            main = (name, cmdline)
+            break
     if main is None:
         for p in sorted(procs, key=lambda p: p.get('pid') or 0):
             if p is leader:
@@ -144,6 +155,9 @@ def _icon_exe_candidates(procs: 'list[dict]', pgrp: int, proc_var: str | None) -
             main = (name, cmdline)
             break
     if main is None:
+        if proc_var and proc_var not in shells:
+            candidates.append(proc_var)
+            proc_var = None
         main = shell
     if main is not None:
         name, cmdline = main
@@ -204,7 +218,8 @@ def get_foreground_process(tab_id: int) -> tuple[str, str, str | None]:
                             except Exception:
                                 continue
                             break
-                    candidates = _icon_exe_candidates(procs, pgrp, proc)
+                    tty_pids = {p['pid'] for p in procs if p.get('pid') and process_holds_tty(p['pid'])}
+                    candidates = _icon_exe_candidates(procs, pgrp, proc, tty_pids)
                     if candidates:
                         exe = _pick_exe_for_icon(candidates)
         except Exception:

@@ -327,6 +327,20 @@ memory_of_process(PyObject *self UNUSED, PyObject *pid_) {
 }
 
 static PyObject *
+fd_path_of_process(PyObject *self UNUSED, PyObject *args) {
+    int pid, fd;
+    if (!PyArg_ParseTuple(args, "ii", &pid, &fd)) return NULL;
+    struct vnode_fdinfowithpath vi;
+    int ret = proc_pidfdinfo(pid, fd, PROC_PIDFDVNODEPATHINFO, &vi, sizeof(vi));
+    if (ret < (int)sizeof(vi)) {
+        if (ret <= 0) PyErr_SetFromErrno(PyExc_OSError);
+        else PyErr_SetString(PyExc_OSError, "fd is not a vnode");
+        return NULL;
+    }
+    return PyUnicode_FromString(vi.pvip.vip_path);
+}
+
+static PyObject *
 ppid_of_process(PyObject *self UNUSED, PyObject *pid_) {
     if (!PyLong_Check(pid_)) {
         PyErr_SetString(PyExc_TypeError, "pid must be an int");
@@ -354,6 +368,7 @@ static PyMethodDef module_methods[] = {
     {"get_all_processes", (PyCFunction)get_all_processes, METH_NOARGS, ""},
     {"memory_of_process", (PyCFunction)memory_of_process, METH_O, ""},
     {"ppid_of_process", (PyCFunction)ppid_of_process, METH_O, ""},
+    {"fd_path_of_process", (PyCFunction)fd_path_of_process, METH_VARARGS, ""},
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
