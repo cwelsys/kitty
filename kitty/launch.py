@@ -874,7 +874,9 @@ def _launch(
         watchers = load_watch_modules(opts.watcher)
         persist_session, persist_owned = '', False
         if want_persist:
-            kw['cmd'], persist_session, persist_owned = tab._wrap_in_zmx(kw['cmd'], kw['cwd'], kw['cwd_from'], opts.persist_name, auto=not explicit_persist)
+            kw['cmd'], persist_session, persist_owned = tab._wrap_in_zmx(
+                kw['cmd'], kw['cwd'], kw['cwd_from'], opts.persist_name or '', auto=not explicit_persist
+            )
         with Window.set_ignore_focus_changes_for_new_windows(opts.keep_focus):
             new_window: Window = tab.new_window(
                 env=env or None,
