@@ -1802,7 +1802,7 @@ Exec=kitty +open %U
 Icon=kitty
 Categories=System;TerminalEmulator;
 NoDisplay=true
-MimeType=image/*;application/x-sh;application/x-shellscript;inode/directory;text/*;x-scheme-handler/kitty;x-scheme-handler/ssh;
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;image/tiff;image/svg+xml;image/vnd.microsoft.icon;image/heif;image/avif;image/jxl;image/x-xpixmap;image/x-xbitmap;image/x-portable-pixmap;image/x-tga;image/qoi;image/x-farbfeld;application/x-sh;application/x-shellscript;inode/directory;text/plain;text/markdown;text/csv;text/html;text/css;text/javascript;text/x-shellscript;text/x-python;text/x-csrc;text/x-c++src;text/x-chdr;text/x-c++hdr;text/x-java;text/x-lua;text/x-go;text/rust;text/x-scala;text/x-haskell;text/x-patch;text/x-makefile;text/x-cmake;text/x-tex;text/x-log;text/x-dockerfile;text/vbscript;x-scheme-handler/kitty;x-scheme-handler/ssh;
 """
         )
 
