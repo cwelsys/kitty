@@ -184,9 +184,17 @@ class LoadShaderPrograms:
     text_old_gamma: bool = False
     custom_shaders: tuple[str, ...] = ()
     force_recompile_of_custom_shaders: bool = False
-    last_built_custom_shaders: dict[int, Any] = {}
 
     opts: Options | None = None
+
+    def __init__(self) -> None:
+        # Per-instance because it is mutable: the sources most recently compiled
+        # into each program, used to skip redundant recompiles.
+        self.last_built_custom_shaders: dict[int, tuple[str, str, dict[str, Any]]] = {}
+        # Errors from the most recent attempt to build the shaders named by the
+        # custom_shaders option. A failure here disables the shader silently as
+        # far as rendering is concerned, so the Boss displays these to the user.
+        self.custom_shader_errors: list[str] = []
 
     def get_options(self) -> Options:
         try:
@@ -250,6 +258,15 @@ class LoadShaderPrograms:
         self.force_recompile_of_custom_shaders = False
         opts = self.get_options()
         self.custom_shaders = tuple(opts.custom_shaders)
+        self.custom_shader_errors = []
+
+        def err(msg: str) -> None:
+            # Record as well as log: a failure here leaves the shader disabled
+            # with no visible difference from not setting custom_shaders at all,
+            # so the Boss shows these to the user.
+            log_error(msg)
+            self.custom_shader_errors.append(msg)
+
         pmap: dict[str, list[Pipeline]] = {}
         for k in self.custom_shaders:
             try:
@@ -258,39 +275,57 @@ class LoadShaderPrograms:
                 try:
                     custom_shader(k)
                 except Exception as e:
-                    log_error(f'Failed to read custom shader pipeline definition from {k} with error: {e}')
+                    err(f'Failed to read custom shader pipeline definition from {k} with error: {e}')
                     continue
                 try:
                     d = parse_pipeline_definition(['startgroup', f'    shaders {k}', 'endgroup'], k)
                 except Exception as e:
-                    log_error(f'Failed to build minimal shader pipeline for {k} with error: {e}')
+                    err(f'Failed to build minimal shader pipeline for {k} with error: {e}')
                     continue
             except Exception as e:
-                log_error(f'Failed to read custom shader pipeline definition from {k} with error: {e}')
+                err(f'Failed to read custom shader pipeline definition from {k} with error: {e}')
                 continue
             pmap.setdefault(d['slot'], []).append(d)
+
+        def disable(prog: int) -> None:
+            # Forget the cached sources as well, otherwise re-enabling the same
+            # shader later is a no-op because the sources compare equal while the
+            # program itself is empty.
+            compile_program(prog, (), (), {}, allow_recompile)
+            self.last_built_custom_shaders.pop(prog, None)
 
         def do(prog: int, slot: str) -> None:
             slot_pipelines = pmap.get(slot)
             if not slot_pipelines:
-                compile_program(prog, (), (), {}, allow_recompile)
+                disable(prog)
             else:
                 try:
                     pipeline = merge_pipelines(slot_pipelines)
                     vert, frag, metadata = build_custom_shader_pipeline_glsl(pipeline)
                     # print(vert, file=open('/tmp/sample.vert', 'w'))
                     # print(frag, file=open('/tmp/sample.frag', 'w'))
+                except FileNotFoundError as e:
+                    if e.filename == slangc()[0]:
+                        # Without slangc no custom shader can be built at all, and
+                        # a bare "No such file or directory" gives no hint as to why.
+                        err(
+                            f'Failed to build custom shader for slot {slot} because the slang shader compiler'
+                            f' ({slangc()[0]}) was not found. Install shader-slang to use custom shaders.'
+                        )
+                    else:
+                        err(f'Failed to build custom shader for slot {slot} with error: {e}')
+                    disable(prog)
                 except Exception as e:
-                    log_error(f'Failed to build custom shader for slot {slot} with error: {e}')
-                    compile_program(prog, (), (), {}, allow_recompile)
+                    err(f'Failed to build custom shader for slot {slot} with error: {e}')
+                    disable(prog)
                 else:
                     try:
                         if self.last_built_custom_shaders.get(prog) != (vert, frag, metadata):
                             compile_program(prog, (vert,), (frag,), metadata, allow_recompile)
                             self.last_built_custom_shaders[prog] = vert, frag, metadata
                     except Exception as e:
-                        log_error(f'Failed to load custom shader for slot {slot} with error: {e}')
-                        compile_program(prog, (), (), {}, allow_recompile)
+                        err(f'Failed to load custom shader for slot {slot} with error: {e}')
+                        disable(prog)
 
         do(CUSTOM_END_PROGRAM, 'end')
         compile_program(-2, (), (), {})  # initialize programs
@@ -933,7 +968,7 @@ ParallelRun = Callable[[Iterable[tuple[bool, str, list[str]]]], None]
 
 def create_specialisations(sources: dict[str, SlangFile], build_dir: str) -> Iterator[Command]:
     for _, base_build, _, _, sfile in iter_entry_point_shaders(sources, build_dir, build_dir):
-        if sfile.entry_points and sfile.specializations:
+        if sfile.entry_points:
             for sp in sfile.specializations:
                 if not sp.variables:
                     continue
@@ -1070,6 +1105,7 @@ def custom_shader(name: str = '', pipeline_dir: str = '') -> tuple[str, str, byt
 
 @lru_cache(maxsize=64)
 def pipeline_definition(name: str) -> tuple[tuple[str, ...], str]:
+    name = os.path.expanduser(name)
     if os.path.isabs(name):
         pipeline_path = name if name.endswith('.pipeline') else name + '.pipeline'
         with open(pipeline_path, 'rb') as f:
@@ -1300,7 +1336,10 @@ def parse_pipeline_definition(lines: Iterable[str], pipeline_name: str, pipeline
                 case 'animation_step':
                     if len(parts) < 2:
                         raise ValueError('animation_step requires a millisecond value')
-                    current_group['animation_step'] = int(parts[1]) * 1_000_000
+                    step_ms = int(parts[1])
+                    if step_ms < 0:
+                        raise ValueError(f'animation_step must be non-negative, not: {step_ms}')
+                    current_group['animation_step'] = step_ms * 1_000_000
                 case 'animation_stop':
                     val = ''.join(parts[1:]) if len(parts) > 1 else 'never'
                     if val == 'never':

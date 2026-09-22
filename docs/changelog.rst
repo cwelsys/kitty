@@ -39,6 +39,8 @@ should see a 15-35% improvement depending on workload. Some details:
 
 #. Speed up pixel compositing with :term:`SIMD` vectorization: alpha blending of graphics protocol images and animation frames is 2-3.5x faster and glyph alpha masks are composited onto canvases using the same vectorized primitives.
 
+#. Cache HarfBuzz results for repeated short runs (≤32 cells) so redraws of the same on-screen text are not reshaped
+
 
 Vertical tabs [0.48]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -197,18 +199,32 @@ you use a decent Wayland compositor.
 Detailed list of changes
 -------------------------------------
 
-0.49.0 [future]
+0.50.0 [future]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Splits layout: Dragging a divider now resizes only its adjacent regions,
+  consistently after rearranging windows. Fix nested dividers not tracking
+  mouse movement correctly, including when returning from a minimum size.
+
+- Splits layout: Fix windows in a nested split overlapping their neighbour by a
+  couple of pixels when the split is resized down to its minimum size.
+
+0.49.0 [2026-09-21]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Support for :doc:`/custom-shaders` for adding various graphical effects (:iss:`10344`)
 
-- Various throughput performance improvements for a 15-35% real world improvement depending on workload
+- Throughput performance improvements for a 15-35% real world improvement depending on workload
 
 - Add :opt:`window_border_radius` for rounded window borders (:pull:`10421`)
 
 - A new option :opt:`remap_modifiers` to allow having modifier keys behave as different modifier keys (:pull:`10307`)
 
 - A new option, :opt:`padding_fill_strategy` to control how the thin padding strips that appear when the window size is not an exact multiple of the cell size are colored. You can choose to have the padding colored to match the background of each neighboring cell, effectively extending the size of the cell or you can continue to use the existing behavior of using the background.
+
+- Splits layout: Add an optional proportional sizing policy that preserves
+  adjusted window weights when adding, closing or repositioning windows.
+  See :doc:`layouts` for configuration (:pull:`10471`)
 
 - The :opt:`scrollbar` option now takes a new value ``scrolled-or-hovered`` to also show the scrollbar when the mouse moves over the scrollbar region (:pull:`10345`)
 
@@ -219,6 +235,11 @@ Detailed list of changes
 - Wayland: Fix the first movement of the scroll wheel after reversing direction
   often not scrolling, with high resolution wheels such as the Logitech MX
   Master 3 (:pull:`10306`)
+
+- Allow dragging selected text to other windows or applications with the
+  :code:`mouse_selection drag_or_normal_select` mouse action, in addition to
+  its existing support for dragging links. See the
+  :sc:`configuration examples <start_simple_selection>` to enable it.
 
 - Vertical tabs: Improve handling of multi-line tab titles. Controlled via two new options:
   :opt:`tab_title_max_lines` and :opt:`tab_title_template` (:pull:`10303`)
@@ -237,7 +258,16 @@ Detailed list of changes
 
 - macOS: Allow kitty OS Windows to participate in Split View tiling (:pull:`103701`)
 
+- Allow dropping a tab containing a single window into another tab's layout,
+  using the existing window drop preview and preserving running programs.
+  See :doc:`overview` for details.
+
 - Port remaining built in kittens from Python to Go (:pull:`10371`)
+
+- Splits layout: Fix dragging a border resizing the wrong split in nested layouts.
+
+- Linux: Fix drawing a screen containing many distinct codepoints that are not
+  present in the main font causing a noticeable stall (:iss:`10496`)
 
 - Graphics protocol: Fix scaled images (created with the ``r`` or ``c`` keys)
   being distorted instead of clipped when scrolled against a margin
@@ -255,6 +285,13 @@ Detailed list of changes
 - dnd kitten: Add an option to use file copies instead of hard links for copy drops (:pull:`10412`)
 
 - Fix a malformed CSI escape sequence such as ``\e[?:`` corrupting the parser state so that subsequent SGR color codes are ignored (:iss:`10434`)
+
+- Thai/Lao: Render the vowel sign AM (U+0E33/U+0EB3) correctly by widening the cell it combines into, matching wcwidth() based programs (:pull:`10477`)
+
+- :doc:`Text sizing protocol </text-sizing-protocol>`: A cell whose width was set explicitly with the ``w`` key is no longer narrowed by a subsequent ``U+FE0E`` variation selector
+
+- Fix dropping files or URLs onto a window being delivered to the wrong window,
+  or ignored entirely, when the tab bar is at the top or on either side
 
 - Graphics protocol: Fix a regression in 0.45.0 that caused the overwrite
   composition mode for animation frames (``a=f``) to be controlled by the
@@ -295,6 +332,14 @@ Detailed list of changes
   object at an offset (the ``O`` key) failing unless the offset happened to be
   a multiple of the system page size
 
+- Graphics protocol: Fix file descriptor leak that can be triggered by malicious clients
+
+- Graphics protocol: Make fileopen failure responses generic to avoid leaking any information about failed files
+
+- edit-in-kitty: harden the code used to parse messages from clients
+
+- Linux: :option:`kitty --single-instance`: Only accept commands from processes running as the same user
+
 - Clipboard protocol: Report an ``EFBIG`` error to programs that try to write
   more data to the clipboard than allowed by :opt:`clipboard_max_size`, instead
   of silently truncating their data. Also fix :opt:`clipboard_max_size` being
@@ -313,6 +358,20 @@ Detailed list of changes
   shells to accumulate as zombie processes and also broke reloading the config
   with ``SIGUSR1`` and quitting on ``SIGINT``/``SIGTERM``/``SIGHUP``
   (:iss:`10436`)
+
+- macOS: Fix long text from input methods being discarded when committed
+  outside a key event (:pull:`10468`)
+
+- :doc:`Multiple cursors protocol </multiple-cursors-protocol>`: Fix hiding the
+  main cursor with DECTCEM also hiding the extra cursors (:iss:`10489`)
+
+- Add a new ``passthrough_and_end`` value for the ``--on-unknown`` option of
+  ``map``, that passes the unknown key through to the program and also exits
+  the custom keyboard mode (:iss:`10490`)
+
+- macOS: Allow input methods to read the text around the cursor, so that input
+  methods that automatically insert a space between Latin and CJK text work
+  (:iss:`10492`)
 
 
 0.48.2 [2026-07-30]

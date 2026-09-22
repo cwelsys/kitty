@@ -644,9 +644,37 @@ def is_path_in_temp_dir(path: str) -> bool:
     return False
 
 
+def is_ok_to_read_image_path(path: str) -> bool:
+    """Check if path may be read, based only on the path itself.
+
+    This must be done *before* opening the file, since merely opening a file
+    can have side effects and the success or failure of the open leaks the
+    existence of the file to the, possibly remote or sandboxed, client.
+    """
+    if not path:
+        return False
+    path = os.path.abspath(os.path.realpath(path))
+    parts = path.split(os.sep)[1:]
+    if len(parts) < 1:
+        return False
+    if parts[0] in ('sys', 'proc', 'dev'):
+        if parts[0] == 'dev':
+            return len(parts) > 2 and parts[1] == 'shm'
+        return False
+    return True
+
+
 def is_ok_to_read_image_file(path: str, fd: int) -> bool:
+    """Check if the already opened fd for path may be read.
+
+    This re-does the path based checks, since path could have been swapped for
+    a different file after :func:`is_ok_to_read_image_path` was called, and
+    additionally verifies that the opened file is a regular file.
+    """
     import stat
 
+    if not is_ok_to_read_image_path(path):
+        return False
     path = os.path.abspath(os.path.realpath(path))
     try:
         path_stat = os.stat(path, follow_symlinks=True)
@@ -654,13 +682,6 @@ def is_ok_to_read_image_file(path: str, fd: int) -> bool:
     except OSError:
         return False
     if not os.path.samestat(path_stat, fd_stat):
-        return False
-    parts = path.split(os.sep)[1:]
-    if len(parts) < 1:
-        return False
-    if parts[0] in ('sys', 'proc', 'dev'):
-        if parts[0] == 'dev':
-            return len(parts) > 2 and parts[1] == 'shm'
         return False
     return stat.S_ISREG(fd_stat.st_mode)
 
@@ -1230,11 +1251,20 @@ def unlock_file(f: IO[bytes] | IO[str]) -> None:
 
 @contextmanager
 def lock_with_file(path: str) -> Iterator[None]:
-    os.close(os.open(path, os.O_CREAT | os.O_WRONLY | os.O_EXCL | os.O_CLOEXEC))
+    """Take an exclusive advisory lock on path, waiting for it to become available.
+
+    The lock file is created if needed and left in place, since unlinking it
+    would allow a second process to create and lock a different file with the
+    same name while the lock is still held. The kernel drops the lock when the
+    file descriptor is closed, including on abnormal process exit, so stale lock
+    files are harmless.
+    """
+    fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_CLOEXEC, 0o600)
     try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:
-        os.remove(path)
+        os.close(fd)
 
 
 def rmtree_best_effort(relpath: str, dir_fd: int) -> None:

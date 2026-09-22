@@ -32,6 +32,7 @@ from kitty.fast_data_types import Cursor as C
 from kitty.rgb import to_color
 from kitty.utils import (
     is_ok_to_read_image_file,
+    is_ok_to_read_image_path,
     is_path_in_temp_dir,
     lock_with_file,
     sanitize_title,
@@ -40,7 +41,17 @@ from kitty.utils import (
     shlex_split_with_positions,
 )
 
+from . import in_isolated_test_env
 from .base import BaseTest, filled_cursor, filled_history_buf, filled_line_buf
+
+
+def rmtree_in_test_home(path):
+    # Guard against destroying the invoking user's data if the test suite is ever
+    # run without the isolated $HOME set up by env_for_python_tests()
+    if not in_isolated_test_env():
+        raise AssertionError(f'Refusing to delete {path} as the test suite is not running with an isolated HOME')
+    if os.path.exists(path):
+        shutil.rmtree(path)
 
 
 def create_lbuf(*lines):
@@ -567,6 +578,12 @@ class TestDataTypes(BaseTest):
         self.ae(wcswidth('\U0001f610\ufe0e'), 1)
         self.ae(wcswidth('\U0001f1e6a'), 3)
         self.ae(wcswidth('\U0001f1e6a\U0001f1e8a'), 6)
+        # Thai/Lao SARA AM is a SpacingMark with width 1, it widens the cell it combines into
+        self.ae(wcswidth('จำ'), 2)
+        self.ae(wcswidth('ำ'), 1)
+        self.ae(wcswidth('กิ'), 1)
+        self.ae(wcswidth('จำำ'), 2)
+        self.ae(wcswidth('ກຳ'), 2)
         self.ae(wcswidth('\U0001f1e6\U0001f1e8a'), 3)
         self.ae(wcswidth('\U0001f1e6\U0001f1e8\U0001f1e6'), 4)
         self.ae(wcswidth('a\u00adb'), 2)
@@ -625,6 +642,12 @@ class TestDataTypes(BaseTest):
             if os.path.exists(path):
                 with open(path) as pf:
                     self.assertFalse(is_ok_to_read_image_file(path, pf.fileno()), path)
+        # The path based check must reject protected locations without needing
+        # the file to be opened first, since opening it leaks its existence
+        for path in ('', '/proc/self/cmdline', '/proc/does-not-exist', '/sys/kernel', '/dev/null', '/dev/does-not-exist'):
+            self.assertFalse(is_ok_to_read_image_path(path), path)
+        for path in ('/tmp/a.png', '/dev/shm/a.png', os.path.join(tempfile.gettempdir(), 'a.png')):
+            self.assertTrue(is_ok_to_read_image_path(path), path)
         fifo = os.path.join(tempfile.gettempdir(), 'test-kitty-fifo')
         os.mkfifo(fifo)
         fifo_fd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
@@ -687,8 +710,7 @@ class TestDataTypes(BaseTest):
         saved = {x: os.environ.get(x) for x in 'KITTY_CONFIG_DIRECTORY XDG_CONFIG_DIRS XDG_CONFIG_HOME'.split()}
         try:
             dot_config = os.path.expanduser('~/.config')
-            if os.path.exists(dot_config):
-                shutil.rmtree(dot_config)
+            rmtree_in_test_home(dot_config)
             with tempfile.TemporaryDirectory() as tdir:
                 with open(tdir + '/macos-launch-services-cmdline', 'w') as f:
                     print('kitty --title from-file', file=f)
@@ -731,42 +753,55 @@ class TestDataTypes(BaseTest):
                         os.environ[k] = v
                     self.assertEqual(x[-1], get_config_dir(), str(x))
         finally:
-            if os.path.exists(dot_config):
-                shutil.rmtree(dot_config)
+            rmtree_in_test_home(dot_config)
             for k in saved:
                 os.environ.pop(k, None)
                 if saved[k] is not None:
                     os.environ[k] = saved[k]
 
     def test_lock_with_file(self):
+        def is_locked_by_another_process(path):
+            # flock() locks are per file descriptor, so a non-blocking
+            # acquisition in this process would succeed even while the lock is
+            # held here, hence the check has to happen in a child process.
+            code = f'import fcntl, os;fd = os.open({path!r}, os.O_CREAT | os.O_WRONLY);fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)'
+            return subprocess.run([kitty_exe(), '+runpy', code], capture_output=True).returncode != 0
+
         with tempfile.TemporaryDirectory() as tdir:
             lock_path = os.path.join(tdir, 'test.lock')
 
-            # normal usage: file exists during context and is removed after
+            # normal usage: the lock is held only inside the context
             with lock_with_file(lock_path):
                 self.assertTrue(os.path.exists(lock_path))
-            self.assertFalse(os.path.exists(lock_path))
+                self.assertTrue(is_locked_by_another_process(lock_path))
+            self.assertFalse(is_locked_by_another_process(lock_path))
 
-            # second acquisition of the same path succeeds after the first released it
-            with lock_with_file(lock_path):
-                self.assertTrue(os.path.exists(lock_path))
-            self.assertFalse(os.path.exists(lock_path))
-
-            # file already exists: raises FileExistsError before yielding
-            open(lock_path, 'w').close()
-            with self.assertRaises(FileExistsError):
-                with lock_with_file(lock_path):
-                    pass  # should not be reached
-            # pre-existing file must not be deleted
+            # a pre-existing, unlocked lock file must not prevent acquisition
             self.assertTrue(os.path.exists(lock_path))
-            os.remove(lock_path)
+            with lock_with_file(lock_path):
+                self.assertTrue(is_locked_by_another_process(lock_path))
+            self.assertFalse(is_locked_by_another_process(lock_path))
 
-            # lock file is removed even when the body raises
+            # the lock is released even when the body raises
             with self.assertRaises(RuntimeError):
                 with lock_with_file(lock_path):
-                    self.assertTrue(os.path.exists(lock_path))
                     raise RuntimeError('body error')
-            self.assertFalse(os.path.exists(lock_path))
+            self.assertFalse(is_locked_by_another_process(lock_path))
+
+            # a waiting process acquires the lock once it is released
+            code = f'from kitty.utils import lock_with_file;lock_with_file({lock_path!r}).__enter__();print("acquired", flush=True)'
+            with lock_with_file(lock_path):
+                p = subprocess.Popen([kitty_exe(), '+runpy', code], stdout=subprocess.PIPE)
+                try:
+                    # the child must block while we hold the lock
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        p.wait(timeout=1)
+                except Exception:
+                    p.kill()
+                    raise
+            self.assertEqual(p.stdout.readline(), b'acquired\n')
+            self.assertEqual(p.wait(timeout=30), 0)
+            p.stdout.close()
 
     def test_historybuf(self):
         lb = filled_line_buf()
