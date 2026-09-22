@@ -81,7 +81,7 @@ def _git_status(cwd: str, ttl_bucket: int) -> tuple[str, dict[str, int]] | None:
         return None
     try:
         result = subprocess.run(
-            ['git', '-C', cwd, 'status', '--porcelain=v2', '--branch', '--show-stash'],
+            ['git', '-C', cwd, '--no-optional-locks', 'status', '--porcelain=v2', '--branch', '--show-stash'],
             capture_output=True,
             text=True,
             timeout=0.5,
