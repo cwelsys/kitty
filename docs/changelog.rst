@@ -199,7 +199,21 @@ you use a decent Wayland compositor.
 Detailed list of changes
 -------------------------------------
 
-0.49.1 [future]
+0.49.2 [future]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Fix an out-of-bounds memory access when drawing a multi-line text sized
+  character with the cursor below the bottom margin of the scroll region
+
+- Fix a memory leak when loading a corrupt PNG image that has an embedded ICC
+  color profile
+
+- Custom shaders: The builtin :code:`dim-inactive-windows` shader no longer dims
+  the tab bar and the padding, border and margin around the active window (:iss:`10524`)
+
+- Vertical tabs: Improve rendering of tabs when using the ``powerline`` :opt:`tab_bar_style`
+
+0.49.1 [2026-09-24]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Splits layout: Dragging a divider now resizes only its adjacent regions,
@@ -213,7 +227,7 @@ Detailed list of changes
   equalizing a tab with only one window, or closing a window with
   :code:`equalize_on_window_close` enabled (:iss:`10522`)
 
-- icat: Fix :code:`--transfer-mode=memory` not displaying anything and
+- icat: Fix a regression in 0.49.0 :code:`--transfer-mode=memory` not displaying anything and
   :code:`--detect-support` reporting ``files``, because the names of the POSIX
   shared memory objects it created were missing the leading slash mandated by
   the graphics protocol (:iss:`10517`)
