@@ -213,6 +213,20 @@ Detailed list of changes
 
 - Vertical tabs: Improve rendering of tabs when using the ``powerline`` :opt:`tab_bar_style`
 
+- Graphics: Fix images briefly disappearing for one frame the first time an image is replaced during a synchronized update (:iss:`10538`)
+
+- X11: Fix copy and paste targeting the wrong OS window when the keyboard focus
+  is set to PointerRoot or None
+
+- diff kitten: Fix freezes and very high memory use when a very long line, such
+  as in a minified file, is changed
+
+- themes and choose fonts kittens: Fix search freezing for many seconds when
+  typing a long query, such as the full name of a theme
+
+- macOS: Fix a custom dock icon reverting to the stock icon after a progress
+  bar is cleared (:iss:`10545`)
+
 0.49.1 [2026-09-24]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
