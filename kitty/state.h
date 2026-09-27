@@ -14,6 +14,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <hb.h>
+#include <regex.h>
 #pragma GCC diagnostic pop
 
 #define OPT(name) global_state.opts.name
@@ -145,6 +146,10 @@ typedef struct Options {
     } url_prefixes;
     char_type *url_excluded_characters;
     bool detect_urls;
+    struct {
+        regex_t *items;
+        size_t count;
+    } detect_url_regex;
     bool tab_bar_hidden;
     double font_size;
     struct {
@@ -434,6 +439,8 @@ typedef struct CursorTrail {
     float opacity;
     float corner_x[4];
     float corner_y[4];
+    float previous_corner_x[4]; // corner_x as of the previous frame
+    float previous_corner_y[4]; // corner_y as of the previous frame
     float cursor_edge_x[2];
     float cursor_edge_y[2];
     float prev_cursor_edge_x[2]; // cursor_edge_x before the most recent cursor move

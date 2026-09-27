@@ -202,6 +202,9 @@ Detailed list of changes
 0.49.2 [future]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+- A new option :opt:`detect_url_regex` to detect arbitrary text, such as file
+  references in compiler output, as clickable URLs under the mouse (:iss:`10407`)
+
 - Fix an out-of-bounds memory access when drawing a multi-line text sized
   character with the cursor below the bottom margin of the scroll region
 
@@ -210,6 +213,9 @@ Detailed list of changes
 
 - Custom shaders: The builtin :code:`dim-inactive-windows` shader no longer dims
   the tab bar and the padding, border and margin around the active window (:iss:`10524`)
+
+- Custom shaders: A new :code:`cursor-trail-motion-blur` shader that makes
+  the cursor trail glide smoothly during fast cursor movements
 
 - Vertical tabs: Improve rendering of tabs when using the ``powerline`` :opt:`tab_bar_style`
 
@@ -229,6 +235,12 @@ Detailed list of changes
 
 0.49.1 [2026-09-24]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Drag and drop: Hover over a tab while dragging a window or a single window
+  tab to switch to it and choose a split position. Drop a window at a tab edge
+  or gap to put it into a new tab at that position. Dragging tabs now shows an
+  insertion marker rather than moving the other tabs during the drag. See
+  :doc:`overview` for details.
 
 - Splits layout: Dragging a divider now resizes only its adjacent regions,
   consistently after rearranging windows. Fix nested dividers not tracking
