@@ -202,11 +202,14 @@ Detailed list of changes
 0.49.2 [future]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+- Sessions: Expand launch option variables when an option value matches the command name
+
+- Preserve transparent background colors when applying unrelated launch color overrides
+
+- ssh kitten: Preserve SSH option values following a spaced :code:`--kitten` option
+
 - A new option :opt:`detect_url_regex` to detect arbitrary text, such as file
   references in compiler output, as clickable URLs under the mouse (:iss:`10407`)
-
-- Fix an out-of-bounds memory access when drawing a multi-line text sized
-  character with the cursor below the bottom margin of the scroll region
 
 - Fix a memory leak when loading a corrupt PNG image that has an embedded ICC
   color profile
@@ -232,6 +235,26 @@ Detailed list of changes
 
 - macOS: Fix a custom dock icon reverting to the stock icon after a progress
   bar is cleared (:iss:`10545`)
+
+- macOS: Fix a regression in the previous release causing
+  :opt:`background_opacity` less than one with no :opt:`background_blur` making
+  the titlebar transparent (:iss:`10540`)
+
+- diff kitten: Fix search not finding matches at the end of a line
+
+- hints kitten: Fix delays of many seconds when selecting paths or line
+  numbers on a screen with long lines that contain no spaces
+
+- File transfer: Fix a security issue where a malicious program on the remote
+  machine could bypass the transfer confirmation prompt when no
+  :opt:`file_transfer_confirmation_bypass` password is set
+
+- Fix an out-of-bounds memory access when drawing a multi-line text sized
+  character with the cursor below the bottom margin of the scroll region
+
+- Fix a heap buffer underflow when parsing ANSI-C quoted strings in
+  the command line sent by shell integration via the OSC 133 escape code
+
 
 0.49.1 [2026-09-24]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
