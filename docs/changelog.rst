@@ -202,14 +202,21 @@ Detailed list of changes
 0.49.2 [future]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+- A new option :opt:`detect_url_regex` to detect arbitrary text, such as file
+  references in compiler output, as clickable URLs under the mouse (:iss:`10407`)
+
+- Reduce input latency by processing small amounts of program output, such as
+  the echo of typed characters, immediately instead of waiting for
+  :opt:`input_delay` (:pull:`10560`)
+
+- Drag and drop: Restore the previously active tab after dropping a dragged tab
+  on the same OS window's tab bar, even if it was reordered after a hover switch
+
 - Sessions: Expand launch option variables when an option value matches the command name
 
 - Preserve transparent background colors when applying unrelated launch color overrides
 
 - ssh kitten: Preserve SSH option values following a spaced :code:`--kitten` option
-
-- A new option :opt:`detect_url_regex` to detect arbitrary text, such as file
-  references in compiler output, as clickable URLs under the mouse (:iss:`10407`)
 
 - Fix a memory leak when loading a corrupt PNG image that has an embedded ICC
   color profile
@@ -239,6 +246,9 @@ Detailed list of changes
 - macOS: Fix a regression in the previous release causing
   :opt:`background_opacity` less than one with no :opt:`background_blur` making
   the titlebar transparent (:iss:`10540`)
+
+- macOS: Fix regression in 0.49 that caused rounded rect shader to not work on
+  ancient macs with AMD GPUs (:iss:`10549`)
 
 - diff kitten: Fix search not finding matches at the end of a line
 
