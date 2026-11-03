@@ -23,9 +23,16 @@ def make_title_window():
 
 
 def make_cwd_window(
-    reported='kitty-shell-cwd://host/home/u/proj', remote=False, at_prompt=False, fg_pid=2000, fg_exe='/usr/bin/make', heuristic='/', root_cwd='/home/u'
+    reported='kitty-shell-cwd://host/home/u/proj',
+    remote=False,
+    at_prompt=False,
+    fg_pid=2000,
+    fg_exe='/usr/bin/make',
+    heuristic='/',
+    root_cwd='/home/u',
+    root_in_fg=True,
 ):
-    w = Window.__new__(type('W', (Window,), {'child_is_remote': remote, 'at_prompt': at_prompt}))
+    w = Window.__new__(type('W', (Window,), {'child_is_remote': remote, 'at_prompt': at_prompt, 'root_in_foreground_processes': root_in_fg}))
     w.screen = types.SimpleNamespace(last_reported_cwd=reported)
     w.child = types.SimpleNamespace(effective_pid=1000, get_pid_for_cwd=lambda oldest=False: fg_pid, get_foreground_exe=lambda oldest=False: fg_exe)
     w.get_cwd_of_child = lambda oldest=False: heuristic
@@ -58,5 +65,6 @@ class TestWindow(BaseTest):
             ({'remote': True, 'heuristic': '/x'}, last, '/x'),
             ({'heuristic': '/x'}, root, '/home/u'),
             ({'at_prompt': True}, root, '/home/u/proj'),
+            ({'at_prompt': True, 'root_in_fg': False}, root, '/home/u'),
         ):
             self.ae(make_cwd_window(**kw).resolved_cwd(request_type=request_type), expected, f'{kw} {request_type}')
